@@ -1,11 +1,16 @@
+// ===================================================
+// 1. SUPABASE CLIENT & SOFT AUTH SETUP
+// ===================================================
+
 const SUPABASE_URL = 'https://wauinjxrmknqtbohfkrd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdWluanhybWtucXRib2hma3JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjc3MjIsImV4cCI6MjA5OTYwMzcyMn0.oJLojkkqZbpYXEEJ1WGhpH2ICWLaJVjYyupCUgbpG3s';
 
-let supabase = null;
+let supabaseClient = null;
 
 try {
   if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // window.supabase comes from the CDN script tag
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } else {
     console.warn('Athena Hub: Supabase credentials are using placeholder values.');
   }
@@ -54,6 +59,10 @@ let hostMatchState = null;
 
 const INDEX_TO_CHOICE = ['A', 'B', 'C', 'D'];
 const CHOICE_TO_INDEX = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
+
+// ===================================================
+// 2. VIEW NAVIGATION & UI CONTROLS
+// ===================================================
 
 window.showKahootView = function(view) {
   const kahootView = document.getElementById('kahoot-view');
@@ -118,6 +127,10 @@ window.showSidebarTab = function(tab) {
   }
 };
 
+// ===================================================
+// 3. DATABASE OPERATIONS
+// ===================================================
+
 function generateGamePin() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -126,11 +139,11 @@ async function fetchMatchesFromDb() {
   const container = document.getElementById('matches-container');
   if (!container) return;
 
-  if (!supabase) {
+  if (!supabaseClient) {
     container.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 2rem;">
         <p style="color: #ff5e36; font-weight: 700; margin-bottom: 0.5rem;">Supabase Connection Required</p>
-        <p style="opacity: 0.7; font-size: 0.9rem;">Update <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of <code>app.js</code>.</p>
+        <p style="opacity: 0.7; font-size: 0.9rem;">Update <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of <code>App.js</code>.</p>
       </div>`;
     return;
   }
@@ -138,7 +151,7 @@ async function fetchMatchesFromDb() {
   container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; opacity: 0.7;">Loading matches...</p>`;
 
   try {
-    const { data: games, error: gError } = await supabase
+    const { data: games, error: gError } = await supabaseClient
       .from('games')
       .select('*')
       .order('created_at', { ascending: false });
@@ -151,7 +164,7 @@ async function fetchMatchesFromDb() {
     }
 
     const gameIds = games.map(g => g.id);
-    const { data: configs } = await supabase
+    const { data: configs } = await supabaseClient
       .from('config')
       .select('*')
       .in('game_id', gameIds);
@@ -212,15 +225,15 @@ async function fetchMatchesFromDb() {
 }
 
 window.createNewMatchInDb = async function() {
-  if (!supabase) {
-    alert('Please configure your Supabase URL and Anon Key in app.js first.');
+  if (!supabaseClient) {
+    alert('Please configure your Supabase URL and Anon Key in App.js first.');
     return;
   }
 
   const pin = generateGamePin();
 
   try {
-    const { data: newGame, error: gError } = await supabase
+    const { data: newGame, error: gError } = await supabaseClient
       .from('games')
       .insert([{
         game_pin: pin,
@@ -234,12 +247,12 @@ window.createNewMatchInDb = async function() {
 
     if (gError) throw gError;
 
-    await supabase.from('config').insert([
+    await supabaseClient.from('config').insert([
       { game_id: newGame.id, key: 'title', value: 'New Kahoot Match' },
       { game_id: newGame.id, key: 'team_tag', value: 'TECH TEAM' }
     ]);
 
-    await supabase.from('questions').insert([{
+    await supabaseClient.from('questions').insert([{
       game_id: newGame.id,
       sort_order: 1,
       round: '1',
@@ -260,10 +273,10 @@ window.createNewMatchInDb = async function() {
 };
 
 window.openMatchEditor = async function(gameId) {
-  if (!supabase) return;
+  if (!supabaseClient) return;
 
   try {
-    const { data: game, error: gError } = await supabase
+    const { data: game, error: gError } = await supabaseClient
       .from('games')
       .select('*')
       .eq('id', gameId)
@@ -274,7 +287,7 @@ window.openMatchEditor = async function(gameId) {
       return;
     }
 
-    const { data: configs } = await supabase
+    const { data: configs } = await supabaseClient
       .from('config')
       .select('*')
       .eq('game_id', gameId);
@@ -284,7 +297,7 @@ window.openMatchEditor = async function(gameId) {
       configs.forEach(c => { currentConfigs[c.key] = c; });
     }
 
-    const { data: questions } = await supabase
+    const { data: questions } = await supabaseClient
       .from('questions')
       .select('*')
       .eq('game_id', gameId)
@@ -321,13 +334,13 @@ window.openMatchEditor = async function(gameId) {
 };
 
 window.hostMatch = async function(gameId) {
-  if (!supabase) {
-    alert('Please configure your Supabase URL and Anon Key in app.js first.');
+  if (!supabaseClient) {
+    alert('Please configure your Supabase URL and Anon Key in App.js first.');
     return;
   }
 
   try {
-    const { data: game, error: gError } = await supabase
+    const { data: game, error: gError } = await supabaseClient
       .from('games')
       .select('*')
       .eq('id', gameId)
@@ -338,7 +351,7 @@ window.hostMatch = async function(gameId) {
       return;
     }
 
-    const { data: configs } = await supabase
+    const { data: configs } = await supabaseClient
       .from('config')
       .select('*')
       .eq('game_id', gameId);
@@ -348,7 +361,7 @@ window.hostMatch = async function(gameId) {
       configs.forEach(c => { configMap[c.key] = c; });
     }
 
-    const { count: questionCount } = await supabase
+    const { count: questionCount } = await supabaseClient
       .from('questions')
       .select('id', { count: 'exact', head: true })
       .eq('game_id', gameId);
@@ -388,12 +401,12 @@ function updateStartButton(status) {
 }
 
 window.toggleMatchStatus = async function() {
-  if (!hostMatchState || !hostMatchState.game || !supabase) return;
+  if (!hostMatchState || !hostMatchState.game || !supabaseClient) return;
 
   const nextStatus = hostMatchState.game.status === 'ACTIVE' ? 'ENDED' : 'ACTIVE';
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('games')
       .update({ status: nextStatus })
       .eq('id', hostMatchState.game.id);
@@ -506,7 +519,7 @@ window.saveActiveQuestion = async function() {
     }
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from('questions')
     .update({
       question: newPrompt,
@@ -554,7 +567,7 @@ window.addQuestionToMatch = async function() {
     time_limit: 20
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('questions')
     .insert([newQ])
     .select()
@@ -570,15 +583,15 @@ window.addQuestionToMatch = async function() {
 };
 
 window.updateMatchTitle = async function(newTitle) {
-  if (!isOwner || !currentMatch || !supabase) return;
+  if (!isOwner || !currentMatch || !supabaseClient) return;
 
   if (currentConfigs.title) {
-    await supabase
+    await supabaseClient
       .from('config')
       .update({ value: newTitle, updated_at: new Date().toISOString() })
       .eq('id', currentConfigs.title.id);
   } else {
-    const { data } = await supabase
+    const { data } = await supabaseClient
       .from('config')
       .insert([{ game_id: currentMatch.id, key: 'title', value: newTitle }])
       .select()
