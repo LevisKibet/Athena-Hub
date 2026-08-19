@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scrabble | Athena Game Hub</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="backdrop-overlay"></div>
+
+  <div class="hub-container">
+    <header class="top-nav">
+      <div class="nav-left">
+        <span id="live-date">Wed, Aug 19</span>
+      </div>
+
+      <nav class="nav-center">
+        <a href="index.html" class="nav-link">Games Hub</a>
+        <a href="scrabble.html" class="nav-link active">Scrabble</a>
+        <div class="hub-badge">
+          <i class="fa-solid fa-house"></i> Athena
+        </div>
+      </nav>
+
+      <div class="nav-right">
+        <a href="index.html" class="btn-back">
+          <i class="fa-solid fa-arrow-left"></i> Back to Hub
+        </a>
+
+        <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Light/Dark Mode">
+          <i id="theme-icon" class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <div class="title-section" style="margin-bottom: 2rem;">
+        <div class="add-icon-btn">
+          <i class="fa-solid fa-cubes"></i>
+        </div>
+        <h1>Scrabble Strategy</h1>
+      </div>
+
+      <div class="info-modal" style="display: block; text-align: center; padding: 4rem 2rem;">
+        <h2 style="font-size: 2rem; margin-bottom: 1rem;">Word Building Arena</h2>
+        <p style="font-size: 1.1rem; max-width: 600px; margin: 0 auto 2rem auto;">
+          Challenge your vocabulary, create tactical word plays, and dominate the leaderboard.
+        </p>
+        <button class="btn-create-match" style="margin: 0 auto; width: fit-content; padding: 1rem 2rem;">
+          <i class="fa-solid fa-gamepad"></i> Join Lobby
+        </button>
+      </div>
+    </main>
+
+    <footer class="bottom-bar">
+      <div class="glow-orb-wrapper">
+        <div class="glow-orb"></div>
+      </div>
+
+      <div class="hub-status">
+        <span>Scrabble Active</span>
+        <div class="avatar-group">
+          <div class="avatar" style="background-color: #10b981;">S</div>
+          <div class="avatar" style="background-color: #0284c7;">C</div>
+          <div class="avatar" style="background-color: #f59e0b;">R</div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

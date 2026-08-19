@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kahoot Arena | Athena Game Hub</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <div class="backdrop-overlay"></div>
+
+  <div class="hub-container">
+    <header class="top-nav">
+      <div class="nav-left">
+        <div class="custom-burger" id="burger-toggle" title="Toggle Menu" onclick="toggleSidebar()">
+          <span class="burger-line line-top"></span>
+          <span class="burger-line line-bottom"></span>
+        </div>
+        <span id="live-date">Wed, Aug 19</span>
+      </div>
+
+      <nav class="nav-center">
+        <a href="index.html" class="nav-link">Games Hub</a>
+        <a href="kahoot.html" class="nav-link active" id="nav-matches" onclick="showKahootView('kahoot'); return false;">Kahoot Matches</a>
+        <a href="#" class="nav-link" id="nav-editor" onclick="showKahootView('editor'); return false;">Game Editor</a>
+        <div class="hub-badge">
+          <i class="fa-solid fa-house"></i> Athena
+        </div>
+      </nav>
+
+      <div class="nav-right">
+        <a href="index.html" class="btn-back">
+          <i class="fa-solid fa-arrow-left"></i> Back to Hub
+        </a>
+
+        <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Light/Dark Mode">
+          <i id="theme-icon" class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- KAHOOT MATCHES DASHBOARD -->
+    <main id="kahoot-view">
+      <div class="kahoot-layout" id="kahoot-layout">
+        <aside class="retractable-sidebar" id="retractable-sidebar">
+          <ul class="sidebar-menu">
+            <li>
+              <a href="#" class="sidebar-link active" id="menu-home" onclick="showSidebarTab('home')">
+                <i class="fa-solid fa-house"></i> Home
+              </a>
+            </li>
+            <li>
+              <a href="#" class="sidebar-link" id="menu-rules" onclick="showSidebarTab('rules')">
+                <i class="fa-solid fa-circle-info"></i> How to Play
+              </a>
+            </li>
+            <li>
+              <a href="#" class="sidebar-link" id="menu-settings" onclick="showSidebarTab('settings')">
+                <i class="fa-solid fa-gear"></i> Settings
+              </a>
+            </li>
+          </ul>
+        </aside>
+
+        <section class="kahoot-main">
+          <div id="modal-rules" class="info-modal">
+            <h3><i class="fa-solid fa-gamepad"></i> How to Play Kahoot Matches</h3>
+            <p>1. Select any team match to host or edit.<br>
+            2. Matches created by your browser can be modified at any time.<br>
+            3. Answer questions rapidly to maximize your score output!</p>
+          </div>
+
+          <div id="modal-settings" class="info-modal">
+            <h3><i class="fa-solid fa-sliders"></i> Match Settings</h3>
+            <p>Your browser's soft authentication key: <strong id="user-key-display">...</strong></p>
+          </div>
+
+          <div class="dashboard-header">
+            <div>
+              <h2>Kahoot Matches</h2>
+              <p>Join live matches or create new quizzes stored directly in Supabase.</p>
+            </div>
+            <button class="btn-create-match" onclick="createNewMatchInDb()">
+              <i class="fa-solid fa-plus"></i> Create Match
+            </button>
+          </div>
+
+          <div class="filter-bar">
+            <button class="filter-tab active">All Matches</button>
+            <button class="filter-tab">Tech Team</button>
+            <button class="filter-tab">Marketing</button>
+            <button class="filter-tab">Design Guild</button>
+          </div>
+
+          <div class="matches-grid" id="matches-container">
+            <p style="grid-column: 1/-1; text-align: center; opacity: 0.7;">Loading matches...</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- GAME EDITOR VIEW -->
+    <main id="editor-view" style="display: none;">
+      <div class="editor-layout">
+        <aside class="questions-sidebar">
+          <div>
+            <div class="questions-header">
+              <span>Questions</span>
+              <span class="badge-count" id="q-count-badge">0</span>
+            </div>
+            <div class="questions-list" id="questions-list-container"></div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <button class="btn-add-q" onclick="addQuestionToMatch()">
+              <i class="fa-solid fa-plus"></i> Add Question
+            </button>
+            <button class="btn-theme-edit" onclick="saveActiveQuestion()">
+              <i class="fa-solid fa-floppy-disk"></i> Save Question
+            </button>
+          </div>
+        </aside>
+
+        <section class="editor-canvas">
+          <div class="game-title-bar">
+            <div class="game-title-input-wrapper">
+              <span class="meta-label">Game Title</span>
+              <input type="text" id="editor-game-title" class="game-title-input" value="New Kahoot Match" onchange="updateMatchTitle(this.value)" />
+            </div>
+
+            <div class="game-meta-controls">
+              <div class="control-pill">
+                <span style="opacity: 0.6; margin-right: 4px;">Time Limit:</span> 20s
+              </div>
+              <div class="control-pill" id="permission-pill">
+                <span style="opacity: 0.6; margin-right: 4px;">Access:</span> Loading
+              </div>
+            </div>
+          </div>
+
+          <input type="text" id="editor-q-prompt" class="question-prompt-box" value="Question Prompt Here" />
+
+          <div class="media-canvas"></div>
+
+          <div class="answers-grid">
+            <div class="ans-card ans-red">
+              <div class="ans-left">
+                <div class="ans-shape"><i class="fa-solid fa-caret-down"></i></div>
+                <input type="text" id="ans-0-text" class="ans-input" value="Option A" />
+              </div>
+              <div class="ans-check" id="ans-0-check" onclick="selectCorrectAnswer(0)"></div>
+            </div>
+
+            <div class="ans-card ans-blue">
+              <div class="ans-left">
+                <div class="ans-shape"><i class="fa-solid fa-play" style="transform: rotate(-90deg);"></i></div>
+                <input type="text" id="ans-1-text" class="ans-input" value="Option B" />
+              </div>
+              <div class="ans-check" id="ans-1-check" onclick="selectCorrectAnswer(1)"></div>
+            </div>
+
+            <div class="ans-card ans-yellow">
+              <div class="ans-left">
+                <div class="ans-shape"><i class="fa-solid fa-circle"></i></div>
+                <input type="text" id="ans-2-text" class="ans-input" value="Option C" />
+              </div>
+              <div class="ans-check selected" id="ans-2-check" onclick="selectCorrectAnswer(2)"><i class="fa-solid fa-check"></i></div>
+            </div>
+
+            <div class="ans-card ans-green">
+              <div class="ans-left">
+                <div class="ans-shape"><i class="fa-solid fa-square"></i></div>
+                <input type="text" id="ans-3-text" class="ans-input" value="Option D" />
+              </div>
+              <div class="ans-check" id="ans-3-check" onclick="selectCorrectAnswer(3)"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- HOST LOBBY VIEW -->
+    <main id="host-view" style="display: none;">
+      <div class="host-lobby">
+        <button class="btn-back-host" onclick="showKahootView('kahoot')">
+          <i class="fa-solid fa-arrow-left"></i> Back to Matches
+        </button>
+        <div class="host-lobby-card">
+          <div class="host-lobby-label">Game PIN</div>
+          <div class="host-lobby-pin" id="host-pin-display">------</div>
+          <div class="host-lobby-title" id="host-match-title">Match Title</div>
+          <div class="host-lobby-status" id="host-match-status">Status: LOBBY</div>
+          <div class="host-lobby-meta" id="host-question-count">0 questions</div>
+          <div class="host-lobby-controls">
+            <button class="btn-start-match" id="btn-start-match" onclick="toggleMatchStatus()">
+              <i class="fa-solid fa-play"></i> Start Match
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="bottom-bar">
+      <div class="glow-orb-wrapper">
+        <div class="glow-orb"></div>
+      </div>
+
+      <div class="hub-status">
+        <span id="hub-status-text">Kahoot Arena Active</span>
+        <div class="avatar-group">
+          <div class="avatar" style="background-color: #e63946;">A</div>
+          <div class="avatar" style="background-color: #2a9d8f;">G</div>
+          <div class="avatar" style="background-color: #e9c46a;">H</div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
