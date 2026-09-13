@@ -123,6 +123,18 @@
               <i class="fa-solid fa-floppy-disk"></i> Save Question
             </button>
           </div>
+          <!-- Inside <aside class="questions-sidebar"> -->
+<div style="display: flex; flex-direction: column; gap: 0.6rem;">
+  <button class="btn-add-q" onclick="addQuestionToMatch()" id="btn-add-q">
+    <i class="fa-solid fa-plus"></i> Add Question
+  </button>
+  <button class="btn-theme-edit" onclick="saveActiveQuestion()" id="btn-save-q">
+    <i class="fa-solid fa-floppy-disk"></i> Save Question
+  </button>
+  <button class="btn-theme-edit" style="border-color: #ef4444; color: #ef4444;" onclick="deleteActiveQuestion()" id="btn-delete-q">
+    <i class="fa-solid fa-trash"></i> Delete Question
+  </button>
+</div>
         </aside>
 
         <section class="editor-canvas">
