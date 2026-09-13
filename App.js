@@ -7,6 +7,23 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabaseClient = null;
 
+const USER_KEY = getOrCreateUserKey(); // Keep your existing generator
+
+let supabaseClient = null;
+try {
+  if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          'x-user-key': USER_KEY // Passes the soft-auth key to Supabase RLS
+        }
+      }
+    });
+  }
+} catch (err) {
+  console.error('Athena Hub: Invalid Supabase configuration:', err.message);
+}
+
 try {
   if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
     // window.supabase comes from the CDN script tag
