@@ -512,6 +512,39 @@ window.selectCorrectAnswer = function(selectedIndex) {
   }
 };
 
+window.deleteActiveQuestion = async function() {
+  if (!isOwner) {
+    alert('You do not have permission to modify this match.');
+    return;
+  }
+  
+  if (currentQuestions.length <= 1) {
+    alert('A match must have at least one question.');
+    return;
+  }
+
+  const q = currentQuestions[activeQuestionIndex];
+  if (!q) return;
+
+  if (confirm('Are you sure you want to delete this question?')) {
+    const { error } = await supabaseClient
+      .from('questions')
+      .delete()
+      .eq('id', q.id);
+
+    if (error) {
+      alert('Error deleting question: ' + error.message);
+      return;
+    }
+
+    // Remove from local array and update UI
+    currentQuestions.splice(activeQuestionIndex, 1);
+    activeQuestionIndex = Math.max(0, activeQuestionIndex - 1);
+    renderQuestionsSidebar();
+    window.loadQuestionIntoCanvas(activeQuestionIndex);
+  }
+};
+
 window.saveActiveQuestion = async function() {
   if (!isOwner) {
     alert('You do not have permission to edit this match.');
