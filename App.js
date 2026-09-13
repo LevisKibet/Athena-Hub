@@ -1,45 +1,13 @@
 // ===================================================
 // 1. SUPABASE CLIENT & SOFT AUTH SETUP
 // ===================================================
-
 const SUPABASE_URL = 'https://wauinjxrmknqtbohfkrd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdWluanhybWtucXRib2hma3JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjc3MjIsImV4cCI6MjA5OTYwMzcyMn0.oJLojkkqZbpYXEEJ1WGhpH2ICWLaJVjYyupCUgbpG3s';
-
-let supabaseClient = null;
-
-const USER_KEY = getOrCreateUserKey(); // Keep your existing generator
-
-let supabaseClient = null;
-try {
-  if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          'x-user-key': USER_KEY // Passes the soft-auth key to Supabase RLS
-        }
-      }
-    });
-  }
-} catch (err) {
-  console.error('Athena Hub: Invalid Supabase configuration:', err.message);
-}
-
-try {
-  if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
-    // window.supabase comes from the CDN script tag
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  } else {
-    console.warn('Athena Hub: Supabase credentials are using placeholder values.');
-  }
-} catch (err) {
-  console.error('Athena Hub: Invalid Supabase configuration:', err.message);
-}
 
 function getOrCreateUserKey() {
   try {
     let key = localStorage.getItem('athena_user_key');
     if (key) return key;
-
     const bytes = new Uint8Array(12);
     if (window.crypto && crypto.getRandomValues) {
       crypto.getRandomValues(bytes);
@@ -48,24 +16,39 @@ function getOrCreateUserKey() {
         bytes[i] = Math.floor(Math.random() * 256);
       }
     }
-
     key = Array.from(bytes)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
-
     try {
       localStorage.setItem('athena_user_key', key);
     } catch (storageErr) {
       console.warn('Athena Hub: localStorage unavailable.');
     }
-
     return key;
   } catch (err) {
     return 'temp_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 }
 
-const USER_KEY = getOrCreateUserKey();
+const USER_KEY = getOrCreateUserKey();[cite: 2]
+
+let supabaseClient = null;
+try {
+  if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
+    // window.supabase comes from the CDN script tag
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          'x-user-key': USER_KEY // Passes the soft-auth key to Supabase RLS[cite: 2]
+        }
+      }
+    });[cite: 2]
+  } else {
+    console.warn('Athena Hub: Supabase credentials are using placeholder values.');
+  }
+} catch (err) {
+  console.error('Athena Hub: Invalid Supabase configuration:', err.message);
+}[cite: 2]
 
 let currentMatch = null;
 let currentConfigs = {};
@@ -80,13 +63,11 @@ const CHOICE_TO_INDEX = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
 // ===================================================
 // 2. VIEW NAVIGATION & UI CONTROLS
 // ===================================================
-
 window.showKahootView = function(view) {
   const kahootView = document.getElementById('kahoot-view');
   const editorView = document.getElementById('editor-view');
   const hostView = document.getElementById('host-view');
   const hubStatusText = document.getElementById('hub-status-text');
-
   const navMatches = document.getElementById('nav-matches');
   const navEditor = document.getElementById('nav-editor');
 
@@ -113,14 +94,14 @@ window.showKahootView = function(view) {
     if (hubStatusText) hubStatusText.textContent = 'Kahoot Arena Active';
     fetchMatchesFromDb();
   }
-};
+};[cite: 2]
 
 window.toggleSidebar = function() {
   const kahootLayout = document.getElementById('kahoot-layout');
   if (kahootLayout) {
     kahootLayout.classList.toggle('sidebar-retracted');
   }
-};
+};[cite: 2]
 
 window.showSidebarTab = function(tab) {
   document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
@@ -142,15 +123,14 @@ window.showSidebarTab = function(tab) {
     const menuHome = document.getElementById('menu-home');
     if (menuHome) menuHome.classList.add('active');
   }
-};
+};[cite: 2]
 
 // ===================================================
 // 3. DATABASE OPERATIONS
 // ===================================================
-
 function generateGamePin() {
   return Math.floor(100000 + Math.random() * 900000).toString();
-}
+}[cite: 2]
 
 async function fetchMatchesFromDb() {
   const container = document.getElementById('matches-container');
@@ -195,6 +175,7 @@ async function fetchMatchesFromDb() {
     }
 
     container.innerHTML = '';
+
     games.forEach(game => {
       const isCreator = game.host_token === USER_KEY;
       const gameConfig = configMap[game.id] || {};
@@ -235,11 +216,12 @@ async function fetchMatchesFromDb() {
       `;
       container.insertAdjacentHTML('beforeend', cardHtml);
     });
+
   } catch (error) {
     console.error('Error fetching games:', error);
     container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ff5e36;">Failed to load matches from database.</p>`;
   }
-}
+}[cite: 2]
 
 window.createNewMatchInDb = async function() {
   if (!supabaseClient) {
@@ -287,7 +269,7 @@ window.createNewMatchInDb = async function() {
   } catch (err) {
     alert('Error creating game: ' + err.message);
   }
-};
+};[cite: 2]
 
 window.openMatchEditor = async function(gameId) {
   if (!supabaseClient) return;
@@ -323,8 +305,16 @@ window.openMatchEditor = async function(gameId) {
     currentMatch = game;
     currentQuestions = questions || [];
     activeQuestionIndex = 0;
-
     isOwner = (game.host_token === USER_KEY);
+
+    // Hide/Show action buttons based on ownership
+    const btnAdd = document.getElementById('btn-add-q');[cite: 2]
+    const btnSave = document.getElementById('btn-save-q');[cite: 2]
+    const btnDelete = document.getElementById('btn-delete-q');[cite: 2]
+
+    if (btnAdd) btnAdd.style.display = isOwner ? 'flex' : 'none';[cite: 2]
+    if (btnSave) btnSave.style.display = isOwner ? 'flex' : 'none';[cite: 2]
+    if (btnDelete) btnDelete.style.display = isOwner ? 'flex' : 'none';[cite: 2]
 
     const titleVal = currentConfigs.title ? currentConfigs.title.value : `Match PIN: ${game.game_pin}`;
     const titleInput = document.getElementById('editor-game-title');
@@ -345,10 +335,11 @@ window.openMatchEditor = async function(gameId) {
     }
 
     window.showKahootView('editor');
+
   } catch (err) {
     alert('Error loading editor: ' + err.message);
   }
-};
+};[cite: 2]
 
 window.hostMatch = async function(gameId) {
   if (!supabaseClient) {
@@ -386,7 +377,7 @@ window.hostMatch = async function(gameId) {
     hostMatchState = { game, configs: configMap };
 
     const titleVal = configMap.title ? configMap.title.value : `Match PIN: ${game.game_pin}`;
-
+    
     const pinDisplay = document.getElementById('host-pin-display');
     const titleDisplay = document.getElementById('host-match-title');
     const statusDisplay = document.getElementById('host-match-status');
@@ -398,11 +389,13 @@ window.hostMatch = async function(gameId) {
     if (countDisplay) countDisplay.textContent = `${questionCount || 0} question${questionCount === 1 ? '' : 's'}`;
 
     updateStartButton(game.status);
+
     window.showKahootView('host');
+
   } catch (err) {
     alert('Error loading host lobby: ' + err.message);
   }
-};
+};[cite: 2]
 
 function updateStartButton(status) {
   const btn = document.getElementById('btn-start-match');
@@ -415,7 +408,7 @@ function updateStartButton(status) {
     btn.innerHTML = '<i class="fa-solid fa-play"></i> Start Match';
     btn.classList.remove('is-active');
   }
-}
+}[cite: 2]
 
 window.toggleMatchStatus = async function() {
   if (!hostMatchState || !hostMatchState.game || !supabaseClient) return;
@@ -433,18 +426,20 @@ window.toggleMatchStatus = async function() {
     hostMatchState.game.status = nextStatus;
     const statusDisplay = document.getElementById('host-match-status');
     if (statusDisplay) statusDisplay.textContent = `Status: ${nextStatus}`;
+    
     updateStartButton(nextStatus);
+
   } catch (err) {
     alert('Error updating match status: ' + err.message);
   }
-};
+};[cite: 2]
 
 function renderQuestionsSidebar() {
   const container = document.getElementById('questions-list-container');
   const countBadge = document.getElementById('q-count-badge');
   if (countBadge) countBadge.textContent = currentQuestions.length;
-  if (!container) return;
 
+  if (!container) return;
   container.innerHTML = '';
 
   currentQuestions.forEach((q, idx) => {
@@ -458,7 +453,7 @@ function renderQuestionsSidebar() {
     `;
     container.insertAdjacentHTML('beforeend', qHtml);
   });
-}
+}[cite: 2]
 
 window.loadQuestionIntoCanvas = function(index) {
   if (!currentQuestions[index]) return;
@@ -466,6 +461,7 @@ window.loadQuestionIntoCanvas = function(index) {
   renderQuestionsSidebar();
 
   const q = currentQuestions[index];
+
   const promptInput = document.getElementById('editor-q-prompt');
   if (promptInput) {
     promptInput.value = q.question;
@@ -494,11 +490,11 @@ window.loadQuestionIntoCanvas = function(index) {
       }
     }
   }
-};
+};[cite: 2]
 
 window.selectCorrectAnswer = function(selectedIndex) {
-  if (!isOwner) return; // Your existing lock is good, but ensure it wraps the whole function
-  
+  if (!isOwner) return;[cite: 2]
+
   for (let i = 0; i < 4; i++) {
     const checkBtn = document.getElementById(`ans-${i}-check`);
     if (checkBtn) {
@@ -511,40 +507,7 @@ window.selectCorrectAnswer = function(selectedIndex) {
       }
     }
   }
-};
-
-window.deleteActiveQuestion = async function() {
-  if (!isOwner) {
-    alert('You do not have permission to modify this match.');
-    return;
-  }
-  
-  if (currentQuestions.length <= 1) {
-    alert('A match must have at least one question.');
-    return;
-  }
-
-  const q = currentQuestions[activeQuestionIndex];
-  if (!q) return;
-
-  if (confirm('Are you sure you want to delete this question?')) {
-    const { error } = await supabaseClient
-      .from('questions')
-      .delete()
-      .eq('id', q.id);
-
-    if (error) {
-      alert('Error deleting question: ' + error.message);
-      return;
-    }
-
-    // Remove from local array and update UI
-    currentQuestions.splice(activeQuestionIndex, 1);
-    activeQuestionIndex = Math.max(0, activeQuestionIndex - 1);
-    renderQuestionsSidebar();
-    window.loadQuestionIntoCanvas(activeQuestionIndex);
-  }
-};
+};[cite: 2]
 
 window.saveActiveQuestion = async function() {
   if (!isOwner) {
@@ -595,7 +558,7 @@ window.saveActiveQuestion = async function() {
     renderQuestionsSidebar();
     alert('Question saved successfully!');
   }
-};
+};[cite: 2]
 
 window.addQuestionToMatch = async function() {
   if (!isOwner) {
@@ -631,7 +594,40 @@ window.addQuestionToMatch = async function() {
 
   currentQuestions.push(data);
   window.loadQuestionIntoCanvas(currentQuestions.length - 1);
-};
+};[cite: 2]
+
+window.deleteActiveQuestion = async function() {
+  if (!isOwner) {
+    alert('You do not have permission to modify this match.');
+    return;
+  }
+  
+  if (currentQuestions.length <= 1) {
+    alert('A match must have at least one question.');
+    return;
+  }
+
+  const q = currentQuestions[activeQuestionIndex];
+  if (!q) return;
+
+  if (confirm('Are you sure you want to delete this question?')) {
+    const { error } = await supabaseClient
+      .from('questions')
+      .delete()
+      .eq('id', q.id);
+
+    if (error) {
+      alert('Error deleting question: ' + error.message);
+      return;
+    }
+
+    // Remove from local array and update UI
+    currentQuestions.splice(activeQuestionIndex, 1);
+    activeQuestionIndex = Math.max(0, activeQuestionIndex - 1);
+    renderQuestionsSidebar();
+    window.loadQuestionIntoCanvas(activeQuestionIndex);
+  }
+};[cite: 2]
 
 window.updateMatchTitle = async function(newTitle) {
   if (!isOwner || !currentMatch || !supabaseClient) return;
@@ -649,13 +645,13 @@ window.updateMatchTitle = async function(newTitle) {
       .single();
     if (data) currentConfigs.title = data;
   }
-};
+};[cite: 2]
 
 function escapeHtml(str) {
   return (str || '').replace(/[&<>"']/g, function(m) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
   });
-}
+}[cite: 2]
 
 function applyTheme(isLight) {
   const themeIcon = document.getElementById('theme-icon');
@@ -670,7 +666,7 @@ function applyTheme(isLight) {
     body.classList.add('dark-mode');
     if (themeIcon) themeIcon.className = 'fa-solid fa-moon';
   }
-}
+}[cite: 2]
 
 document.addEventListener('DOMContentLoaded', () => {
   const userKeyDisplay = document.getElementById('user-key-display');
@@ -680,7 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)');
   applyTheme(systemPrefersLight.matches);
-
   systemPrefersLight.addEventListener('change', (e) => applyTheme(e.matches));
 
   const themeToggleBtn = document.getElementById('theme-toggle');
@@ -698,4 +693,4 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('kahoot-view')) {
     fetchMatchesFromDb();
   }
-});
+});[cite: 2]
