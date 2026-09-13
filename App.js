@@ -497,7 +497,8 @@ window.loadQuestionIntoCanvas = function(index) {
 };
 
 window.selectCorrectAnswer = function(selectedIndex) {
-  if (!isOwner) return;
+  if (!isOwner) return; // Your existing lock is good, but ensure it wraps the whole function
+  
   for (let i = 0; i < 4; i++) {
     const checkBtn = document.getElementById(`ans-${i}-check`);
     if (checkBtn) {
