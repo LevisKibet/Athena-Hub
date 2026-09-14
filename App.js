@@ -30,32 +30,51 @@ function getOrCreateUserKey() {
   }
 }
 
-const USER_KEY = getOrCreateUserKey();[cite: 2]
+const USER_KEY = getOrCreateUserKey();
 
 let supabaseClient = null;
 try {
   if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
-    // window.supabase comes from the CDN script tag
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: {
         headers: {
-          'x-user-key': USER_KEY // Passes the soft-auth key to Supabase RLS[cite: 2]
+          'x-user-key': USER_KEY
         }
       }
-    });[cite: 2]
+    });
   } else {
     console.warn('Athena Hub: Supabase credentials are using placeholder values.');
   }
 } catch (err) {
   console.error('Athena Hub: Invalid Supabase configuration:', err.message);
-}[cite: 2]
+}
 
+// Global Match & Live Host Engine States
 let currentMatch = null;
 let currentConfigs = {};
 let currentQuestions = [];
 let activeQuestionIndex = 0;
 let isOwner = false;
-let hostMatchState = null;
+
+const hostState = {
+  audio: window.QuizArenaAudio ? new window.QuizArenaAudio() : null,
+  snapshot: null,
+  channel: null,
+  gameId: '',
+  gamePin: '',
+  hostToken: '',
+  serverOffsetMs: 0,
+  timerInterval: null,
+  autoAdvanceTimer: null,
+  revealRequestedFor: '',
+  lastAnswerTotal: 0,
+  lastStatus: '',
+  confettiFired: false,
+  finishedRendered: false,
+  muted: false,
+  loading: false,
+  snapshotQueued: false
+};
 
 const INDEX_TO_CHOICE = ['A', 'B', 'C', 'D'];
 const CHOICE_TO_INDEX = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
@@ -73,6 +92,8 @@ window.showKahootView = function(view) {
 
   if (!kahootView || !editorView || !hostView) return;
 
+  clearTimeout(hostState.autoAdvanceTimer);
+
   kahootView.style.display = 'none';
   editorView.style.display = 'none';
   hostView.style.display = 'none';
@@ -81,27 +102,30 @@ window.showKahootView = function(view) {
   if (navEditor) navEditor.classList.remove('active');
 
   if (view === 'editor') {
+    document.body.classList.remove('host-active');
     editorView.style.display = 'block';
     if (navEditor) navEditor.classList.add('active');
     if (hubStatusText) hubStatusText.textContent = 'Game Editor Active';
   } else if (view === 'host') {
+    document.body.classList.add('host-active');
     hostView.style.display = 'block';
     if (navMatches) navMatches.classList.add('active');
     if (hubStatusText) hubStatusText.textContent = 'Hosting Match';
   } else {
+    document.body.classList.remove('host-active');
     kahootView.style.display = 'block';
     if (navMatches) navMatches.classList.add('active');
     if (hubStatusText) hubStatusText.textContent = 'Kahoot Arena Active';
     fetchMatchesFromDb();
   }
-};[cite: 2]
+};
 
 window.toggleSidebar = function() {
   const kahootLayout = document.getElementById('kahoot-layout');
   if (kahootLayout) {
     kahootLayout.classList.toggle('sidebar-retracted');
   }
-};[cite: 2]
+};
 
 window.showSidebarTab = function(tab) {
   document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
@@ -123,14 +147,14 @@ window.showSidebarTab = function(tab) {
     const menuHome = document.getElementById('menu-home');
     if (menuHome) menuHome.classList.add('active');
   }
-};[cite: 2]
+};
 
 // ===================================================
-// 3. DATABASE OPERATIONS
+// 3. MATCH DASHBOARD & EDITOR CRUD OPERATIONS
 // ===================================================
 function generateGamePin() {
   return Math.floor(100000 + Math.random() * 900000).toString();
-}[cite: 2]
+}
 
 async function fetchMatchesFromDb() {
   const container = document.getElementById('matches-container');
@@ -205,7 +229,7 @@ async function fetchMatchesFromDb() {
           </div>
           <div class="match-actions">
             <button class="btn-host-match" onclick="hostMatch('${game.id}')">
-              <i class="fa-solid fa-tower-broadcast"></i> Host
+              <i class="fa-solid fa-tower-broadcast"></i> Host Live
             </button>
             <button class="btn-edit-match" onclick="openMatchEditor('${game.id}')">
               <i class="fa-solid ${isCreator ? 'fa-pen-to-square' : 'fa-eye'}"></i>
@@ -221,7 +245,7 @@ async function fetchMatchesFromDb() {
     console.error('Error fetching games:', error);
     container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ff5e36;">Failed to load matches from database.</p>`;
   }
-}[cite: 2]
+}
 
 window.createNewMatchInDb = async function() {
   if (!supabaseClient) {
@@ -269,7 +293,7 @@ window.createNewMatchInDb = async function() {
   } catch (err) {
     alert('Error creating game: ' + err.message);
   }
-};[cite: 2]
+};
 
 window.openMatchEditor = async function(gameId) {
   if (!supabaseClient) return;
@@ -307,14 +331,13 @@ window.openMatchEditor = async function(gameId) {
     activeQuestionIndex = 0;
     isOwner = (game.host_token === USER_KEY);
 
-    // Hide/Show action buttons based on ownership
-    const btnAdd = document.getElementById('btn-add-q');[cite: 2]
-    const btnSave = document.getElementById('btn-save-q');[cite: 2]
-    const btnDelete = document.getElementById('btn-delete-q');[cite: 2]
+    const btnAdd = document.getElementById('btn-add-q');
+    const btnSave = document.getElementById('btn-save-q');
+    const btnDelete = document.getElementById('btn-delete-q');
 
-    if (btnAdd) btnAdd.style.display = isOwner ? 'flex' : 'none';[cite: 2]
-    if (btnSave) btnSave.style.display = isOwner ? 'flex' : 'none';[cite: 2]
-    if (btnDelete) btnDelete.style.display = isOwner ? 'flex' : 'none';[cite: 2]
+    if (btnAdd) btnAdd.style.display = isOwner ? 'flex' : 'none';
+    if (btnSave) btnSave.style.display = isOwner ? 'flex' : 'none';
+    if (btnDelete) btnDelete.style.display = isOwner ? 'flex' : 'none';
 
     const titleVal = currentConfigs.title ? currentConfigs.title.value : `Match PIN: ${game.game_pin}`;
     const titleInput = document.getElementById('editor-game-title');
@@ -339,100 +362,7 @@ window.openMatchEditor = async function(gameId) {
   } catch (err) {
     alert('Error loading editor: ' + err.message);
   }
-};[cite: 2]
-
-window.hostMatch = async function(gameId) {
-  if (!supabaseClient) {
-    alert('Please configure your Supabase URL and Anon Key in App.js first.');
-    return;
-  }
-
-  try {
-    const { data: game, error: gError } = await supabaseClient
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
-
-    if (gError || !game) {
-      alert('Match not found.');
-      return;
-    }
-
-    const { data: configs } = await supabaseClient
-      .from('config')
-      .select('*')
-      .eq('game_id', gameId);
-
-    const configMap = {};
-    if (configs) {
-      configs.forEach(c => { configMap[c.key] = c; });
-    }
-
-    const { count: questionCount } = await supabaseClient
-      .from('questions')
-      .select('id', { count: 'exact', head: true })
-      .eq('game_id', gameId);
-
-    hostMatchState = { game, configs: configMap };
-
-    const titleVal = configMap.title ? configMap.title.value : `Match PIN: ${game.game_pin}`;
-    
-    const pinDisplay = document.getElementById('host-pin-display');
-    const titleDisplay = document.getElementById('host-match-title');
-    const statusDisplay = document.getElementById('host-match-status');
-    const countDisplay = document.getElementById('host-question-count');
-
-    if (pinDisplay) pinDisplay.textContent = game.game_pin;
-    if (titleDisplay) titleDisplay.textContent = titleVal;
-    if (statusDisplay) statusDisplay.textContent = `Status: ${game.status || 'LOBBY'}`;
-    if (countDisplay) countDisplay.textContent = `${questionCount || 0} question${questionCount === 1 ? '' : 's'}`;
-
-    updateStartButton(game.status);
-
-    window.showKahootView('host');
-
-  } catch (err) {
-    alert('Error loading host lobby: ' + err.message);
-  }
-};[cite: 2]
-
-function updateStartButton(status) {
-  const btn = document.getElementById('btn-start-match');
-  if (!btn) return;
-
-  if (status === 'ACTIVE') {
-    btn.innerHTML = '<i class="fa-solid fa-stop"></i> End Match';
-    btn.classList.add('is-active');
-  } else {
-    btn.innerHTML = '<i class="fa-solid fa-play"></i> Start Match';
-    btn.classList.remove('is-active');
-  }
-}[cite: 2]
-
-window.toggleMatchStatus = async function() {
-  if (!hostMatchState || !hostMatchState.game || !supabaseClient) return;
-
-  const nextStatus = hostMatchState.game.status === 'ACTIVE' ? 'ENDED' : 'ACTIVE';
-
-  try {
-    const { error } = await supabaseClient
-      .from('games')
-      .update({ status: nextStatus })
-      .eq('id', hostMatchState.game.id);
-
-    if (error) throw error;
-
-    hostMatchState.game.status = nextStatus;
-    const statusDisplay = document.getElementById('host-match-status');
-    if (statusDisplay) statusDisplay.textContent = `Status: ${nextStatus}`;
-    
-    updateStartButton(nextStatus);
-
-  } catch (err) {
-    alert('Error updating match status: ' + err.message);
-  }
-};[cite: 2]
+};
 
 function renderQuestionsSidebar() {
   const container = document.getElementById('questions-list-container');
@@ -453,7 +383,7 @@ function renderQuestionsSidebar() {
     `;
     container.insertAdjacentHTML('beforeend', qHtml);
   });
-}[cite: 2]
+}
 
 window.loadQuestionIntoCanvas = function(index) {
   if (!currentQuestions[index]) return;
@@ -490,10 +420,10 @@ window.loadQuestionIntoCanvas = function(index) {
       }
     }
   }
-};[cite: 2]
+};
 
 window.selectCorrectAnswer = function(selectedIndex) {
-  if (!isOwner) return;[cite: 2]
+  if (!isOwner) return;
 
   for (let i = 0; i < 4; i++) {
     const checkBtn = document.getElementById(`ans-${i}-check`);
@@ -507,7 +437,7 @@ window.selectCorrectAnswer = function(selectedIndex) {
       }
     }
   }
-};[cite: 2]
+};
 
 window.saveActiveQuestion = async function() {
   if (!isOwner) {
@@ -558,7 +488,7 @@ window.saveActiveQuestion = async function() {
     renderQuestionsSidebar();
     alert('Question saved successfully!');
   }
-};[cite: 2]
+};
 
 window.addQuestionToMatch = async function() {
   if (!isOwner) {
@@ -594,7 +524,7 @@ window.addQuestionToMatch = async function() {
 
   currentQuestions.push(data);
   window.loadQuestionIntoCanvas(currentQuestions.length - 1);
-};[cite: 2]
+};
 
 window.deleteActiveQuestion = async function() {
   if (!isOwner) {
@@ -621,13 +551,12 @@ window.deleteActiveQuestion = async function() {
       return;
     }
 
-    // Remove from local array and update UI
     currentQuestions.splice(activeQuestionIndex, 1);
     activeQuestionIndex = Math.max(0, activeQuestionIndex - 1);
     renderQuestionsSidebar();
     window.loadQuestionIntoCanvas(activeQuestionIndex);
   }
-};[cite: 2]
+};
 
 window.updateMatchTitle = async function(newTitle) {
   if (!isOwner || !currentMatch || !supabaseClient) return;
@@ -645,28 +574,511 @@ window.updateMatchTitle = async function(newTitle) {
       .single();
     if (data) currentConfigs.title = data;
   }
-};[cite: 2]
+};
 
+// ===================================================
+// 4. LIVE KAHOOT STADIUM HOST ENGINE (OM SYNC SYSTEM)
+// ===================================================
+async function hostRpc(name, args) {
+  const { data, error } = await supabaseClient.rpc(name, args || {});
+  if (error) throw new Error(error.message || JSON.stringify(error));
+  return data;
+}
+
+window.hostMatch = async function(gameId) {
+  if (!supabaseClient) {
+    alert('Please configure your Supabase URL and Anon Key in App.js first.');
+    return;
+  }
+
+  try {
+    const { data: game, error: gError } = await supabaseClient
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (gError || !game) {
+      alert('Match not found.');
+      return;
+    }
+
+    hostState.gameId = game.id;
+    hostState.gamePin = game.game_pin;
+    hostState.hostToken = game.host_token;
+
+    if (hostState.audio) {
+      hostState.audio.unlock();
+    }
+
+    window.showKahootView('host');
+    await loadHostSnapshot();
+
+  } catch (err) {
+    alert('Error launching host match: ' + err.message);
+  }
+};
+
+async function loadHostSnapshot() {
+  if (hostState.loading) {
+    hostState.snapshotQueued = true;
+    return;
+  }
+  hostState.loading = true;
+
+  try {
+    const snap = await hostRpc('qa_host_snapshot', {
+      p_game_pin: hostState.gamePin,
+      p_host_token: hostState.hostToken
+    });
+    setHostSnapshot(snap);
+  } catch (err) {
+    showHostError(err.message || err);
+  } finally {
+    hostState.loading = false;
+    if (hostState.snapshotQueued) {
+      hostState.snapshotQueued = false;
+      setTimeout(loadHostSnapshot, 60);
+    }
+  }
+}
+
+function setHostSnapshot(snap) {
+  if (!snap || !snap.game) return;
+  const previous = hostState.snapshot;
+  hostState.snapshot = snap;
+  hostState.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
+  hostState.gameId = snap.game.id;
+
+  if (snap.game.status !== 'FINISHED') {
+    hostState.finishedRendered = false;
+  }
+
+  subscribeHostRealtime();
+  handleAudioTransitions(previous, snap);
+  renderHostStage();
+  startHostTimerLoop();
+}
+
+function subscribeHostRealtime() {
+  if (!hostState.gameId || hostState.channel) return;
+
+  hostState.channel = supabaseClient
+    .channel('quiz-arena-host-' + hostState.gameId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'id=eq.' + hostState.gameId }, debounceHostSnapshot)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: 'game_id=eq.' + hostState.gameId }, debounceHostSnapshot)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + hostState.gameId }, function(payload) {
+      const eventType = payload && payload.new ? payload.new.event_type : '';
+      if (eventType === 'ANSWER' && hostState.audio) {
+        hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
+      }
+      debounceHostSnapshot();
+    })
+    .subscribe();
+}
+
+let hostDebounceHandle = null;
+function debounceHostSnapshot() {
+  clearTimeout(hostDebounceHandle);
+  hostDebounceHandle = setTimeout(loadHostSnapshot, 90);
+}
+
+function nowServerMs() {
+  return Date.now() + hostState.serverOffsetMs;
+}
+
+function startHostTimerLoop() {
+  clearInterval(hostState.timerInterval);
+  hostState.timerInterval = setInterval(function() {
+    updateHostLiveTimer();
+  }, 160);
+  updateHostLiveTimer();
+}
+
+function updateHostLiveTimer() {
+  const snap = hostState.snapshot;
+  if (!snap || !snap.game) return;
+
+  const g = snap.game;
+  const status = (g.status || '').toUpperCase();
+
+  if (status === 'PRECOUNTDOWN') {
+    const started = new Date(g.precountdownStartedAt || snap.serverTime).getTime();
+    const remaining = Math.max(0, 3 - ((nowServerMs() - started) / 1000));
+    const el = document.getElementById('precountdownNumber');
+    if (el) el.textContent = String(Math.max(1, Math.ceil(remaining)));
+
+    if (remaining <= 0.05 && hostState.revealRequestedFor !== 'begin-' + g.currentRound) {
+      hostState.revealRequestedFor = 'begin-' + g.currentRound;
+      advanceHostGame();
+    }
+    return;
+  }
+
+  if (status === 'QUESTION') {
+    const limit = Number(g.questionTimerLimit || 20);
+    const started = new Date(g.questionStartedAt || snap.serverTime).getTime();
+    const elapsed = Math.max(0, (nowServerMs() - started) / 1000);
+    const remaining = Math.max(0, limit - elapsed);
+    const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
+    const sec = Math.ceil(remaining);
+
+    const timer = document.getElementById('timerNumber');
+    const ring = document.getElementById('timerRing');
+
+    if (timer) timer.textContent = String(sec);
+    if (ring) ring.style.setProperty('--pct', pct + '%');
+
+    if (remaining <= 0.05 && hostState.revealRequestedFor !== 'reveal-' + g.currentRound) {
+      hostState.revealRequestedFor = 'reveal-' + g.currentRound;
+      revealHostRound('timer');
+    }
+  }
+}
+
+function renderHostStage() {
+  const stage = document.getElementById('hostStage');
+  if (!stage || !hostState.snapshot || !hostState.snapshot.game) return;
+
+  const status = (hostState.snapshot.game.status || '').toUpperCase();
+
+  if (status === 'LOBBY') return renderHostLobby(stage);
+  if (status === 'PRECOUNTDOWN') return renderHostPrecountdown(stage);
+  if (status === 'QUESTION') return renderHostQuestion(stage, false);
+  if (status === 'REVEAL') return renderHostQuestion(stage, true);
+  if (status === 'LEADERBOARD') return renderHostLeaderboard(stage, false);
+  if (status === 'FINISHED') return renderHostFinished(stage);
+
+  stage.innerHTML = `<div class="info-modal" style="display:block;"><h3>Unknown Status (${escapeHtml(hostState.snapshot.game.status)})</h3></div>`;
+}
+
+function renderHostLobby(stage) {
+  const players = hostState.snapshot.players || [];
+  const playUrl = `${window.location.origin}/play.html?pin=${hostState.snapshot.game.gamePin}`;
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playUrl)}`;
+
+  stage.innerHTML = `
+    <div class="card lobby-split-grid">
+      <!-- Left Half: PIN, QR Code & Clickable Link -->
+      <div class="lobby-left-panel">
+        <div class="pin-label">Game PIN</div>
+        <div class="pin" style="font-size: 4rem; font-weight: 800; color: var(--accent-color); margin-bottom: 0.5rem;">
+          ${escapeHtml(hostState.snapshot.game.gamePin)}
+        </div>
+        
+        <div class="lobby-qr-container">
+          <img id="lobby-qr-img" src="${qrApiUrl}" alt="Game QR Code" style="width:180px; height:180px; display:block;" />
+        </div>
+
+        <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
+          <i class="fa-solid fa-copy"></i>
+          <span>${escapeHtml(playUrl)}</span>
+        </button>
+        <div id="copy-toast-msg" class="copy-toast-msg">Copied to clipboard!</div>
+      </div>
+
+      <!-- Right Half: Joined Players & Match Controls -->
+      <div class="lobby-right-panel">
+        <div>
+          <h3 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 0.5rem;">
+            Joined Players <span class="subtle">(${players.length})</span>
+          </h3>
+          <div class="joined-players-container">
+            ${players.map(p => `
+              <div class="player-chip player-chip-pop" style="display:flex; align-items:center; gap:0.6rem; background:rgba(255,255,255,0.12); border:1px solid var(--card-border); padding:0.5rem 1rem; border-radius:99px;">
+                <span class="avatar" style="background:${escapeAttr(p.avatarColor || '#8b5cf6')}; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:#fff;">
+                  ${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}
+                </span>
+                <span style="font-weight:700; font-size:0.95rem;">${escapeHtml(p.nickname || '')}</span>
+              </div>
+            `).join('') || '<p class="subtle" style="margin-top:1rem;">Waiting for players to join...</p>'}
+          </div>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end; gap:1rem; margin-top:1.5rem; display:flex;">
+          <button class="btn-create-match" style="padding:0.8rem 2rem; font-size:1.1rem;" onclick="advanceHostGame()">
+            <i class="fa-solid fa-play"></i> Start Game
+          </button>
+          <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="resetHostGame()">
+            Reset Room
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.copyPlayUrl = function(url) {
+  if (!navigator.clipboard) {
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showCopyToast();
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+    }
+    document.body.removeChild(textArea);
+    return;
+  }
+
+  navigator.clipboard.writeText(url).then(() => {
+    showCopyToast();
+  }).catch(err => {
+    console.error('Failed to copy link: ', err);
+  });
+};
+
+function showCopyToast() {
+  const toast = document.getElementById('copy-toast-msg');
+  if (toast) {
+    toast.style.opacity = '1';
+    setTimeout(() => {
+      toast.style.opacity = '0';
+    }, 2000);
+  }
+}
+
+function renderHostPrecountdown(stage) {
+  const players = hostState.snapshot.players || [];
+  stage.innerHTML = `
+    <section class="card" style="text-align:center; padding:3rem;">
+      <span class="status-badge" style="background:#f59e0b; margin-bottom:1rem; display:inline-block;">GET READY</span>
+      <h1>Question ${escapeHtml(hostState.snapshot.game.currentRound)}</h1>
+      <div id="precountdownNumber" class="host-lobby-pin" style="font-size:8rem; margin:1rem 0;">3</div>
+      <p class="subtle" style="font-size:1.2rem;">${players.length} players in the arena</p>
+      <div class="actions" style="justify-content:center; margin-top:1.5rem; display:flex; gap:1rem;">
+        <button class="btn-create-match" onclick="advanceHostGame()">Start Now</button>
+        <button class="btn-back" onclick="revealHostRound('host')">Skip / Reveal</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderHostQuestion(stage, revealed) {
+  const snap = hostState.snapshot;
+  const q = snap.question || {};
+  const stats = snap.answerStats || { A:0, B:0, C:0, D:0, total:0 };
+  const active = Number(snap.activePlayerCount || 0);
+  const correct = String(q.correct || '').toUpperCase();
+
+  // If revealed, automatically advance to Leaderboard after 4 seconds
+  if (revealed) {
+    clearTimeout(hostState.autoAdvanceTimer);
+    hostState.autoAdvanceTimer = setTimeout(() => {
+      if (hostState.snapshot && hostState.snapshot.game && (hostState.snapshot.game.status || '').toUpperCase() === 'REVEAL') {
+        advanceHostGame();
+      }
+    }, 4000);
+  }
+
+  const answers = ['A','B','C','D'].map(function(letter) {
+    const text = q['option' + letter] || q['option' + letter.toLowerCase()] || '';
+    const isCorrect = letter === correct;
+    const cls = revealed ? (isCorrect ? 'ans-green' : 'ans-red') : ('ans-' + (letter === 'A' ? 'red' : letter === 'B' ? 'blue' : letter === 'C' ? 'yellow' : 'green'));
+    
+    return `
+      <div class="ans-card ${cls}" style="${revealed && !isCorrect ? 'opacity: 0.4;' : ''}">
+        <div class="ans-left">
+          <div class="ans-shape">${letter}</div>
+          <div>${escapeHtml(text)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const imageUrl = q.imageUrl || q.image_url || 'images/kahoot.jpg';
+
+  stage.innerHTML = `
+    <div style="width:100%; max-width:1000px; margin:0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <span class="status-badge">Round ${escapeHtml(snap.game.currentRound || '')}</span>
+        <div id="timerRing" class="timer-ring" style="width:70px; height:70px; border-radius:50%; background:var(--accent-color); display:inline-flex; align-items:center; justify-content:center;">
+          <span id="timerNumber" style="font-size:1.6rem; font-weight:800; color:#fff;">${Number(snap.game.questionTimerLimit || 20)}</span>
+        </div>
+      </div>
+
+      <!-- Question Title -->
+      <h1 class="host-question-title">${escapeHtml(q.question || 'Question')}</h1>
+
+      <!-- Photo / Placeholder Container -->
+      <div class="host-question-media">
+        <img src="${escapeAttr(imageUrl)}" alt="Question Media" />
+      </div>
+
+      <!-- Answers Grid Below Photo -->
+      <div class="answers-grid" style="margin-top:1.5rem;">${answers}</div>
+
+      <!-- Live Responses / Auto-Reveal Indicator -->
+      <div style="text-align:center; margin-top:1.2rem;">
+        ${revealed ? `
+          <div class="auto-reveal-banner">
+            <i class="fa-solid fa-spinner fa-spin"></i> Loading Leaderboard in 4 seconds...
+          </div>
+        ` : `
+          <p style="font-size:1.2rem; font-weight:800; opacity:0.85;">${Number(stats.total || 0)} / ${active} answered</p>
+          <button class="btn-back" style="color:#ef4444; border-color:#ef4444; margin-top:0.5rem;" onclick="revealHostRound('host')">Skip / Reveal</button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function renderHostLeaderboard(stage) {
+  const rows = hostState.snapshot.leaderboard || [];
+  stage.innerHTML = `
+    <section class="card" style="max-width:700px; margin:0 auto; padding:2rem;">
+      <h1 style="text-align:center; font-size:2.5rem; margin-bottom:1.5rem;">Leaderboard</h1>
+      <div style="display:flex; flex-direction:column; gap:0.8rem;">
+        ${rows.map((p, i) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:0.8rem 1.2rem; border-radius:16px;">
+            <div style="display:flex; align-items:center; gap:1rem;">
+              <strong style="font-size:1.2rem; color:var(--accent-color);">#${p.rank || i + 1}</strong>
+              <span style="font-size:1.1rem; font-weight:700;">${escapeHtml(p.nickname || '')}</span>
+            </div>
+            <strong style="font-size:1.2rem;">${Number(p.totalScore || 0).toLocaleString()} pts</strong>
+          </div>
+        `).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+      </div>
+      <div class="actions" style="justify-content:center; margin-top:2rem;">
+        <button class="btn-create-match" onclick="advanceHostGame()">Next Question</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderHostFinished(stage) {
+  const rows = hostState.snapshot.leaderboard || [];
+
+  if (!hostState.finishedRendered) {
+    stage.innerHTML = `
+      <section class="card" style="max-width:800px; margin:0 auto; text-align:center; padding:2.5rem;">
+        <h1 style="font-size:3rem; margin-bottom:1.5rem;">Final Champions</h1>
+        <div style="display:flex; justify-content:center; gap:1.5rem; margin-top:2rem;">
+          ${rows.slice(0, 3).map((p, i) => `
+            <div style="background:var(--card-bg); padding:1.5rem; border-radius:24px; min-width:180px; box-shadow:0 8px 24px var(--shadow-color);">
+              <div style="font-size:2rem; font-weight:800; color:var(--accent-color);">${i === 0 ? '🥇 1st' : i === 1 ? '🥈 2nd' : '🥉 3rd'}</div>
+              <div style="font-size:1.3rem; font-weight:700; margin:0.5rem 0;">${escapeHtml(p.nickname)}</div>
+              <div style="font-weight:800;">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="actions" style="justify-content:center; margin-top:2.5rem;">
+          <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="resetHostGame()">Reset Room</button>
+        </div>
+      </section>
+    `;
+
+    hostState.finishedRendered = true;
+    if (!hostState.confettiFired && window.confetti) {
+      hostState.confettiFired = true;
+      confetti({ particleCount: 180, spread: 90, origin: { y: 0.75 } });
+    }
+  }
+}
+
+async function advanceHostGame() {
+  try {
+    clearTimeout(hostState.autoAdvanceTimer);
+    hostState.finishedRendered = false;
+    const snap = await hostRpc('qa_advance_game', {
+      p_game_pin: hostState.gamePin,
+      p_host_token: hostState.hostToken
+    });
+    setHostSnapshot(snap);
+  } catch (err) {
+    showHostError(err.message || err);
+  }
+}
+
+async function revealHostRound(reason) {
+  try {
+    hostState.finishedRendered = false;
+    const snap = await hostRpc('qa_reveal_round', {
+      p_game_pin: hostState.gamePin,
+      p_host_token: hostState.hostToken,
+      p_reason: reason || 'host'
+    });
+    setHostSnapshot(snap);
+  } catch (err) {
+    showHostError(err.message || err);
+  }
+}
+
+async function resetHostGame() {
+  if (!confirm('Reset the room and remove players/scores?')) return;
+  clearTimeout(hostState.autoAdvanceTimer);
+  hostState.confettiFired = false;
+  hostState.finishedRendered = false;
+  hostState.revealRequestedFor = '';
+  try {
+    const snap = await hostRpc('qa_reset_game', {
+      p_game_pin: hostState.gamePin,
+      p_host_token: hostState.hostToken,
+      p_keep_players: false
+    });
+    setHostSnapshot(snap);
+  } catch (err) {
+    showHostError(err.message || err);
+  }
+}
+
+function handleAudioTransitions(prev, next) {
+  if (!hostState.audio) return;
+  const prevStatus = (prev && prev.game ? prev.game.status : '').toUpperCase();
+  const status = (next.game.status || '').toUpperCase();
+
+  if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
+    hostState.audio.playSfx('Music/321-countdown.mp3');
+  }
+  if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
+    hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
+  }
+  if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
+    hostState.audio.playMusic('Music/leaderboard-theme.mp3', false);
+  }
+  if (status === 'FINISHED' && prevStatus !== 'FINISHED') {
+    hostState.audio.playSfx('Music/u_xg7ssi08yr-crowd-cheering-379666.mp3');
+  }
+}
+
+function showHostError(msg) {
+  const el = document.getElementById('hostError');
+  if (el) {
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+}
+
+// ===================================================
+// 5. INITIALIZATION & UTILITIES
+// ===================================================
 function escapeHtml(str) {
   return (str || '').replace(/[&<>"']/g, function(m) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
   });
-}[cite: 2]
+}
+
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/`/g, '&#96;');
+}
 
 function applyTheme(isLight) {
-  const themeIcon = document.getElementById('theme-icon');
   const body = document.body;
+  const icons = document.querySelectorAll('.theme-icon');
 
   if (isLight) {
     body.classList.add('light-mode');
     body.classList.remove('dark-mode');
-    if (themeIcon) themeIcon.className = 'fa-solid fa-sun';
+    icons.forEach(i => i.className = 'fa-solid fa-sun theme-icon');
   } else {
     body.classList.remove('light-mode');
     body.classList.add('dark-mode');
-    if (themeIcon) themeIcon.className = 'fa-solid fa-moon';
+    icons.forEach(i => i.className = 'fa-solid fa-moon theme-icon');
   }
-}[cite: 2]
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const userKeyDisplay = document.getElementById('user-key-display');
@@ -674,14 +1086,23 @@ document.addEventListener('DOMContentLoaded', () => {
     userKeyDisplay.textContent = USER_KEY.substring(0, 16) + '...';
   }
 
+  // Global Theme Toggles
+  document.querySelectorAll('.theme-btn-global').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light-mode')));
+  });
+
+  const muteBtn = document.getElementById('muteBtn');
+  if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+      hostState.muted = !hostState.muted;
+      if (hostState.audio) hostState.audio.setMuted(hostState.muted);
+      muteBtn.innerHTML = `<i class="fa-solid ${hostState.muted ? 'fa-volume-xmark' : 'fa-volume-high'}"></i> ${hostState.muted ? 'Muted' : 'Audio'}`;
+    });
+  }
+
   const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)');
   applyTheme(systemPrefersLight.matches);
   systemPrefersLight.addEventListener('change', (e) => applyTheme(e.matches));
-
-  const themeToggleBtn = document.getElementById('theme-toggle');
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light-mode')));
-  }
 
   const dateElement = document.getElementById('live-date');
   if (dateElement) {
@@ -693,4 +1114,4 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('kahoot-view')) {
     fetchMatchesFromDb();
   }
-});[cite: 2]
+});

@@ -8,12 +8,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
-
   <div class="backdrop-overlay"></div>
 
   <div class="hub-container">
+    <!-- STANDARD TOP NAV (Hidden during Host Match) -->
     <header class="top-nav">
       <div class="nav-left">
         <div class="custom-burger" id="burger-toggle" title="Toggle Menu" onclick="toggleSidebar()">
@@ -22,23 +24,23 @@
         </div>
         <span id="live-date">Wed, Aug 19</span>
       </div>
-
       <nav class="nav-center">
         <a href="index.html" class="nav-link">Games Hub</a>
-        <a href="kahoot.html" class="nav-link active" id="nav-matches" onclick="showKahootView('kahoot'); return false;">Kahoot Matches</a>
+        <a href="#" class="nav-link active" id="nav-matches" onclick="showKahootView('kahoot'); return false;">Kahoot Matches</a>
         <a href="#" class="nav-link" id="nav-editor" onclick="showKahootView('editor'); return false;">Game Editor</a>
         <div class="hub-badge">
           <i class="fa-solid fa-house"></i> Athena
         </div>
       </nav>
-
       <div class="nav-right">
+        <button id="muteBtn" class="btn-back" style="padding:0.4rem 0.8rem;">
+          <i class="fa-solid fa-volume-high"></i> Audio
+        </button>
         <a href="index.html" class="btn-back">
           <i class="fa-solid fa-arrow-left"></i> Back to Hub
         </a>
-
-        <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Light/Dark Mode">
-          <i id="theme-icon" class="fa-solid fa-moon"></i>
+        <button class="theme-toggle-btn theme-btn-global" title="Toggle Light/Dark Mode">
+          <i class="fa-solid fa-moon theme-icon"></i>
         </button>
       </div>
     </header>
@@ -65,20 +67,17 @@
             </li>
           </ul>
         </aside>
-
         <section class="kahoot-main">
           <div id="modal-rules" class="info-modal">
             <h3><i class="fa-solid fa-gamepad"></i> How to Play Kahoot Matches</h3>
-            <p>1. Select any team match to host or edit.<br>
-            2. Matches created by your browser can be modified at any time.<br>
-            3. Answer questions rapidly to maximize your score output!</p>
+            <p>1. Select any match card and click <strong>Host Live</strong> to launch a game.<br>
+            2. Players join on their phones at <code>play.html?pin=PIN</code>.<br>
+            3. Advance questions in real time and watch scores calculate automatically!</p>
           </div>
-
           <div id="modal-settings" class="info-modal">
             <h3><i class="fa-solid fa-sliders"></i> Match Settings</h3>
             <p>Your browser's soft authentication key: <strong id="user-key-display">...</strong></p>
           </div>
-
           <div class="dashboard-header">
             <div>
               <h2>Kahoot Matches</h2>
@@ -88,14 +87,12 @@
               <i class="fa-solid fa-plus"></i> Create Match
             </button>
           </div>
-
           <div class="filter-bar">
             <button class="filter-tab active">All Matches</button>
             <button class="filter-tab">Tech Team</button>
             <button class="filter-tab">Marketing</button>
             <button class="filter-tab">Design Guild</button>
           </div>
-
           <div class="matches-grid" id="matches-container">
             <p style="grid-column: 1/-1; text-align: center; opacity: 0.7;">Loading matches...</p>
           </div>
@@ -114,36 +111,24 @@
             </div>
             <div class="questions-list" id="questions-list-container"></div>
           </div>
-
           <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-            <button class="btn-add-q" onclick="addQuestionToMatch()">
+            <button class="btn-add-q" id="btn-add-q" onclick="addQuestionToMatch()">
               <i class="fa-solid fa-plus"></i> Add Question
             </button>
-            <button class="btn-theme-edit" onclick="saveActiveQuestion()">
+            <button class="btn-theme-edit" id="btn-save-q" onclick="saveActiveQuestion()">
               <i class="fa-solid fa-floppy-disk"></i> Save Question
             </button>
+            <button class="btn-theme-edit" id="btn-delete-q" style="border-color: #ef4444; color: #ef4444;" onclick="deleteActiveQuestion()">
+              <i class="fa-solid fa-trash"></i> Delete Question
+            </button>
           </div>
-          <!-- Inside <aside class="questions-sidebar"> -->
-<div style="display: flex; flex-direction: column; gap: 0.6rem;">
-  <button class="btn-add-q" onclick="addQuestionToMatch()" id="btn-add-q">
-    <i class="fa-solid fa-plus"></i> Add Question
-  </button>
-  <button class="btn-theme-edit" onclick="saveActiveQuestion()" id="btn-save-q">
-    <i class="fa-solid fa-floppy-disk"></i> Save Question
-  </button>
-  <button class="btn-theme-edit" style="border-color: #ef4444; color: #ef4444;" onclick="deleteActiveQuestion()" id="btn-delete-q">
-    <i class="fa-solid fa-trash"></i> Delete Question
-  </button>
-</div>
         </aside>
-
         <section class="editor-canvas">
           <div class="game-title-bar">
             <div class="game-title-input-wrapper">
               <span class="meta-label">Game Title</span>
               <input type="text" id="editor-game-title" class="game-title-input" value="New Kahoot Match" onchange="updateMatchTitle(this.value)" />
             </div>
-
             <div class="game-meta-controls">
               <div class="control-pill">
                 <span style="opacity: 0.6; margin-right: 4px;">Time Limit:</span> 20s
@@ -153,11 +138,8 @@
               </div>
             </div>
           </div>
-
           <input type="text" id="editor-q-prompt" class="question-prompt-box" value="Question Prompt Here" />
-
           <div class="media-canvas"></div>
-
           <div class="answers-grid">
             <div class="ans-card ans-red">
               <div class="ans-left">
@@ -166,7 +148,6 @@
               </div>
               <div class="ans-check" id="ans-0-check" onclick="selectCorrectAnswer(0)"></div>
             </div>
-
             <div class="ans-card ans-blue">
               <div class="ans-left">
                 <div class="ans-shape"><i class="fa-solid fa-play" style="transform: rotate(-90deg);"></i></div>
@@ -174,7 +155,6 @@
               </div>
               <div class="ans-check" id="ans-1-check" onclick="selectCorrectAnswer(1)"></div>
             </div>
-
             <div class="ans-card ans-yellow">
               <div class="ans-left">
                 <div class="ans-shape"><i class="fa-solid fa-circle"></i></div>
@@ -182,7 +162,6 @@
               </div>
               <div class="ans-check selected" id="ans-2-check" onclick="selectCorrectAnswer(2)"><i class="fa-solid fa-check"></i></div>
             </div>
-
             <div class="ans-card ans-green">
               <div class="ans-left">
                 <div class="ans-shape"><i class="fa-solid fa-square"></i></div>
@@ -195,32 +174,31 @@
       </div>
     </main>
 
-    <!-- HOST LOBBY VIEW -->
+    <!-- LIVE HOST STADIUM VIEW -->
     <main id="host-view" style="display: none;">
-      <div class="host-lobby">
-        <button class="btn-back-host" onclick="showKahootView('kahoot')">
-          <i class="fa-solid fa-arrow-left"></i> Back to Matches
-        </button>
-        <div class="host-lobby-card">
-          <div class="host-lobby-label">Game PIN</div>
-          <div class="host-lobby-pin" id="host-pin-display">------</div>
-          <div class="host-lobby-title" id="host-match-title">Match Title</div>
-          <div class="host-lobby-status" id="host-match-status">Status: LOBBY</div>
-          <div class="host-lobby-meta" id="host-question-count">0 questions</div>
-          <div class="host-lobby-controls">
-            <button class="btn-start-match" id="btn-start-match" onclick="toggleMatchStatus()">
-              <i class="fa-solid fa-play"></i> Start Match
-            </button>
-          </div>
+      <!-- IMMERSIVE HOST MINIMAL TOP BAR -->
+      <div class="host-top-bar">
+        <div class="glow-orb-wrapper">
+          <div class="glow-orb"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.8rem;">
+          <button class="btn-back" onclick="showKahootView('kahoot')" style="padding:0.4rem 0.8rem;">
+            <i class="fa-solid fa-xmark"></i> Exit Match
+          </button>
+          <button class="theme-toggle-btn theme-btn-global" title="Toggle Light/Dark Mode">
+            <i class="fa-solid fa-moon theme-icon"></i>
+          </button>
         </div>
       </div>
+
+      <div id="hostError" class="info-modal" style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;"></div>
+      <section id="hostStage"></section>
     </main>
 
     <footer class="bottom-bar">
       <div class="glow-orb-wrapper">
         <div class="glow-orb"></div>
       </div>
-
       <div class="hub-status">
         <span id="hub-status-text">Kahoot Arena Active</span>
         <div class="avatar-group">
@@ -232,6 +210,7 @@
     </footer>
   </div>
 
+  <script src="audio.js"></script>
   <script src="App.js"></script>
 </body>
 </html>
