@@ -758,13 +758,8 @@ function renderHostStage() {
 function renderHostLobby(stage) {
   const players = hostState.snapshot.players || [];
   
-  // Dynamically resolve the correct path including /Athena-Hub/
-  const playUrlObj = new URL('play.html', window.location.href);
-  playUrlObj.searchParams.set('pin', hostState.snapshot.game.gamePin);
-  const playUrl = playUrlObj.toString();
-  
-  // Use a reliable QR Code generation API
-  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playUrl)}`;
+  // Hardcoded URL pointing to your GitHub Pages deployment
+  const playUrl = `https://leviskibet.github.io/Athena-Hub/play.html?pin=${hostState.snapshot.game.gamePin}`;
 
   stage.innerHTML = `
     <div class="card lobby-split-grid">
@@ -776,7 +771,8 @@ function renderHostLobby(stage) {
         </div>
         
         <div class="lobby-qr-container">
-          <img id="lobby-qr-img" src="${qrApiUrl}" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
+          <!-- Using the static local image for the QR code -->
+          <img id="lobby-qr-img" src="images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
         </div>
 
         <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
