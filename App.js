@@ -609,6 +609,9 @@ window.hostMatch = async function(gameId) {
 
     if (hostState.audio) {
       hostState.audio.unlock();
+      if (hostState.muted) {
+        hostState.audio.setMuted(true);
+      }
     }
 
     window.showKahootView('host');
@@ -650,7 +653,7 @@ function setHostSnapshot(snap) {
   hostState.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
   hostState.gameId = snap.game.id;
 
-  if (snap.game.status !== 'FINISHED') {
+  if ((snap.game.status || '').toUpperCase() !== 'FINISHED') {
     hostState.finishedRendered = false;
   }
 
@@ -669,7 +672,7 @@ function subscribeHostRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: 'game_id=eq.' + hostState.gameId }, debounceHostSnapshot)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + hostState.gameId }, function(payload) {
       const eventType = payload && payload.new ? payload.new.event_type : '';
-      if (eventType === 'ANSWER' && hostState.audio) {
+      if (eventType === 'ANSWER' && hostState.audio && !hostState.muted) {
         hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
       }
       debounceHostSnapshot();
@@ -755,6 +758,8 @@ function renderHostStage() {
 function renderHostLobby(stage) {
   const players = hostState.snapshot.players || [];
   const playUrl = `${window.location.origin}/play.html?pin=${hostState.snapshot.game.gamePin}`;
+  
+  // Use a reliable QR Code generation API
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playUrl)}`;
 
   stage.innerHTML = `
@@ -767,7 +772,7 @@ function renderHostLobby(stage) {
         </div>
         
         <div class="lobby-qr-container">
-          <img id="lobby-qr-img" src="${qrApiUrl}" alt="Game QR Code" style="width:180px; height:180px; display:block;" />
+          <img id="lobby-qr-img" src="${qrApiUrl}" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
         </div>
 
         <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
@@ -864,14 +869,13 @@ function renderHostQuestion(stage, revealed) {
   const active = Number(snap.activePlayerCount || 0);
   const correct = String(q.correct || '').toUpperCase();
 
-  // If revealed, automatically advance to Leaderboard after 4 seconds
   if (revealed) {
     clearTimeout(hostState.autoAdvanceTimer);
     hostState.autoAdvanceTimer = setTimeout(() => {
       if (hostState.snapshot && hostState.snapshot.game && (hostState.snapshot.game.status || '').toUpperCase() === 'REVEAL') {
         advanceHostGame();
       }
-    }, 4000);
+    }, 2500);
   }
 
   const answers = ['A','B','C','D'].map(function(letter) {
@@ -900,22 +904,18 @@ function renderHostQuestion(stage, revealed) {
         </div>
       </div>
 
-      <!-- Question Title -->
       <h1 class="host-question-title">${escapeHtml(q.question || 'Question')}</h1>
 
-      <!-- Photo / Placeholder Container -->
       <div class="host-question-media">
         <img src="${escapeAttr(imageUrl)}" alt="Question Media" />
       </div>
 
-      <!-- Answers Grid Below Photo -->
       <div class="answers-grid" style="margin-top:1.5rem;">${answers}</div>
 
-      <!-- Live Responses / Auto-Reveal Indicator -->
       <div style="text-align:center; margin-top:1.2rem;">
         ${revealed ? `
           <div class="auto-reveal-banner">
-            <i class="fa-solid fa-spinner fa-spin"></i> Loading Leaderboard in 4 seconds...
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.5rem;"></i>
           </div>
         ` : `
           <p style="font-size:1.2rem; font-weight:800; opacity:0.85;">${Number(stats.total || 0)} / ${active} answered</p>
@@ -924,6 +924,153 @@ function renderHostQuestion(stage, revealed) {
       </div>
     </div>
   `;
+}
+
+function renderHostFinished(stage) {
+  const rows = hostState.snapshot.leaderboard || [];
+  
+  const winner = rows[0] || null;
+  const second = rows[1] || null;
+  const third = rows[2] || null;
+  const runnerUps = rows.slice(3, 5);
+
+  if (!hostState.finishedRendered) {
+    hostState.finishedRendered = true;
+
+    stage.innerHTML = `
+      <!-- Spotlight Overlay -->
+      <div id="spotlight-overlay" class="spotlight-overlay">
+        <div class="spotlight-beam"></div>
+      </div>
+
+      <div class="podium-stage-wrapper">
+        <h1 class="host-question-title" style="font-size: 3rem;">Final Podium</h1>
+
+        <div class="podium-box">
+          
+          <!-- 2ND PLACE -->
+          <div class="podium-col podium-col-2nd" id="podium-col-2nd">
+            <div class="podium-player-card">
+              <div class="podium-player-name">${second ? escapeHtml(second.nickname) : '—'}</div>
+              <div class="podium-player-score">${second ? Number(second.totalScore || 0).toLocaleString() + ' pts' : ''}</div>
+            </div>
+            <div class="podium-pedestal-block">
+              <span class="podium-num">2</span>
+            </div>
+          </div>
+
+          <!-- 1ST PLACE -->
+          <div class="podium-col podium-col-1st" id="podium-col-1st">
+            <div class="podium-player-card">
+              <div class="podium-crown-icon"><i class="fa-solid fa-crown"></i></div>
+              <div class="podium-player-name" style="font-size: 1.6rem; color: #f59e0b;">${winner ? escapeHtml(winner.nickname) : '—'}</div>
+              <div class="podium-player-score">${winner ? Number(winner.totalScore || 0).toLocaleString() + ' pts' : ''}</div>
+            </div>
+            <div class="podium-pedestal-block">
+              <span class="podium-num">1</span>
+            </div>
+          </div>
+
+          <!-- 3RD PLACE -->
+          <div class="podium-col podium-col-3rd" id="podium-col-3rd">
+            <div class="podium-player-card">
+              <div class="podium-player-name">${third ? escapeHtml(third.nickname) : '—'}</div>
+              <div class="podium-player-score">${third ? Number(third.totalScore || 0).toLocaleString() + ' pts' : ''}</div>
+            </div>
+            <div class="podium-pedestal-block">
+              <span class="podium-num">3</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RUNNER UPS (4th & 5th Place) -->
+        <div class="runner-ups-bar" id="runner-ups-bar">
+          ${runnerUps.map(p => `
+            <div class="runner-up-item">
+              <strong style="color: var(--accent-color);">#${p.rank}</strong>
+              <span style="font-weight: 700;">${escapeHtml(p.nickname)}</span>
+              <span style="opacity: 0.8;">${Number(p.totalScore || 0).toLocaleString()} pts</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- RESET / EXIT ACTION -->
+        <div class="actions" style="justify-content: center; margin-top: 2.5rem; position: relative; z-index: 101;">
+          <button class="btn-back" style="border-color: #ef4444; color: #ef4444;" onclick="resetHostGame()">
+            <i class="fa-solid fa-rotate-left"></i> Reset Match
+          </button>
+        </div>
+      </div>
+    `;
+
+    // --- SEQUENTIAL PODIUM REVEAL & SPOTLIGHT TIMINGS ---
+
+    // 1. Reveal 3rd Place at 5.0 seconds
+    setTimeout(() => {
+      const col3 = document.getElementById('podium-col-3rd');
+      if (col3) col3.classList.add('revealed');
+    }, 5000);
+
+    // 2. Reveal 2nd Place at 9.0 seconds
+    setTimeout(() => {
+      const col2 = document.getElementById('podium-col-2nd');
+      if (col2) col2.classList.add('revealed');
+    }, 9000);
+
+    // 3. Dim lights and start searching spotlight at 9.5 seconds
+    setTimeout(() => {
+      const spotlight = document.getElementById('spotlight-overlay');
+      if (spotlight) spotlight.classList.add('active', 'searching');
+    }, 9500);
+
+    // 4. Reveal 1st Place, Snap Spotlight, and Confetti at 13.5 seconds
+    setTimeout(() => {
+      const col1 = document.getElementById('podium-col-1st');
+      const runnerBar = document.getElementById('runner-ups-bar');
+      const spotlight = document.getElementById('spotlight-overlay');
+
+      if (col1) col1.classList.add('revealed');
+      if (runnerBar) runnerBar.classList.add('revealed');
+      
+      // Snap spotlight to winner
+      if (spotlight) {
+        spotlight.classList.remove('searching');
+        spotlight.classList.add('highlight-winner');
+      }
+
+      if (!hostState.confettiFired && window.confetti) {
+        hostState.confettiFired = true;
+        confetti({ particleCount: 160, spread: 85, origin: { y: 0.6 }, zIndex: 1000 });
+        setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.2, y: 0.6 }, zIndex: 1000 }), 400);
+        setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.8, y: 0.6 }, zIndex: 1000 }), 800);
+      }
+
+      // 5. Fade out the spotlight completely after a short highlight so players can see the full screen
+      setTimeout(() => {
+        if (spotlight) spotlight.classList.remove('active');
+      }, 2000);
+
+    }, 13500);
+  }
+}
+
+function renderDistribution(stats, correct) {
+  const max = Math.max(1, stats.A || 0, stats.B || 0, stats.C || 0, stats.D || 0);
+  return ['A','B','C','D'].map(function(letter) {
+    const count = Number(stats[letter] || 0);
+    const width = Math.round((count / max) * 100);
+    const isCorrect = letter === correct;
+    return `
+      <div style="display:flex; align-items:center; gap:0.8rem; margin:0.6rem 0;">
+        <strong style="width:20px;">${letter}</strong>
+        <div style="flex:1; background:rgba(0,0,0,0.2); height:16px; border-radius:8px; overflow:hidden;">
+          <div style="width:${width}%; height:100%; background:${isCorrect ? '#10b981' : '#ef4444'};"></div>
+        </div>
+        <strong>${count}</strong>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderHostLeaderboard(stage) {
@@ -949,35 +1096,7 @@ function renderHostLeaderboard(stage) {
   `;
 }
 
-function renderHostFinished(stage) {
-  const rows = hostState.snapshot.leaderboard || [];
 
-  if (!hostState.finishedRendered) {
-    stage.innerHTML = `
-      <section class="card" style="max-width:800px; margin:0 auto; text-align:center; padding:2.5rem;">
-        <h1 style="font-size:3rem; margin-bottom:1.5rem;">Final Champions</h1>
-        <div style="display:flex; justify-content:center; gap:1.5rem; margin-top:2rem;">
-          ${rows.slice(0, 3).map((p, i) => `
-            <div style="background:var(--card-bg); padding:1.5rem; border-radius:24px; min-width:180px; box-shadow:0 8px 24px var(--shadow-color);">
-              <div style="font-size:2rem; font-weight:800; color:var(--accent-color);">${i === 0 ? '🥇 1st' : i === 1 ? '🥈 2nd' : '🥉 3rd'}</div>
-              <div style="font-size:1.3rem; font-weight:700; margin:0.5rem 0;">${escapeHtml(p.nickname)}</div>
-              <div style="font-weight:800;">${Number(p.totalScore || 0).toLocaleString()} pts</div>
-            </div>
-          `).join('')}
-        </div>
-        <div class="actions" style="justify-content:center; margin-top:2.5rem;">
-          <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="resetHostGame()">Reset Room</button>
-        </div>
-      </section>
-    `;
-
-    hostState.finishedRendered = true;
-    if (!hostState.confettiFired && window.confetti) {
-      hostState.confettiFired = true;
-      confetti({ particleCount: 180, spread: 90, origin: { y: 0.75 } });
-    }
-  }
-}
 
 async function advanceHostGame() {
   try {
@@ -1026,21 +1145,32 @@ async function resetHostGame() {
 }
 
 function handleAudioTransitions(prev, next) {
-  if (!hostState.audio) return;
+  if (!hostState.audio || hostState.muted) return;
   const prevStatus = (prev && prev.game ? prev.game.status : '').toUpperCase();
   const status = (next.game.status || '').toUpperCase();
 
-  if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
-    hostState.audio.playSfx('Music/321-countdown.mp3');
-  }
-  if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
-    hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
-  }
-  if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
+  if (status === prevStatus) return;
+
+  if (status === 'LOBBY') {
+    hostState.audio.playMusic('Music/Kahoot Lobby Music.mp3', true);
+  } else if (status === 'PRECOUNTDOWN') {
+    hostState.audio.playMusic('Music/321-countdown.mp3', false);
+  } else if (status === 'QUESTION') {
+    const q = next.question || {};
+    const timerLimit = Number(q.timeLimit || next.game.questionTimerLimit || 20);
+    const questionMusic = timerLimit <= 20 
+      ? 'Music/Kahoot In Game Music (20 Second Countdown) 3_3.mp3'
+      : 'Music/Kahoot Music (30 Second Countdown) 2_3.mp3';
+    
+    hostState.audio.playMusic(questionMusic, false);
+  } else if (status === 'REVEAL') {
+    hostState.audio.stopMusic();
+    hostState.audio.playSfx('Music/Kahoot Gong Sound Effect.mp3');
+  } else if (status === 'LEADERBOARD') {
     hostState.audio.playMusic('Music/leaderboard-theme.mp3', false);
-  }
-  if (status === 'FINISHED' && prevStatus !== 'FINISHED') {
-    hostState.audio.playSfx('Music/u_xg7ssi08yr-crowd-cheering-379666.mp3');
+  } else if (status === 'FINISHED') {
+    hostState.audio.stopMusic();
+    hostState.audio.playMusic('Music/Kahoot Podium animation.mp3', false);
   }
 }
 
@@ -1086,10 +1216,11 @@ document.addEventListener('DOMContentLoaded', () => {
     userKeyDisplay.textContent = USER_KEY.substring(0, 16) + '...';
   }
 
-  // Global Theme Toggles
-  document.querySelectorAll('.theme-btn-global').forEach(btn => {
-    btn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light-mode')));
-  });
+  document.addEventListener('click', () => {
+    if (hostState.audio && !hostState.audio.unlocked) {
+      hostState.audio.unlock();
+    }
+  }, { once: true });
 
   const muteBtn = document.getElementById('muteBtn');
   if (muteBtn) {
@@ -1103,6 +1234,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)');
   applyTheme(systemPrefersLight.matches);
   systemPrefersLight.addEventListener('change', (e) => applyTheme(e.matches));
+
+  document.querySelectorAll('.theme-btn-global').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light-mode')));
+  });
 
   const dateElement = document.getElementById('live-date');
   if (dateElement) {

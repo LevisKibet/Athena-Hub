@@ -1072,3 +1072,326 @@ body.host-active .bottom-bar {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===================================================
+   CLASSIC KAHOOT PODIUM STYLES
+   =================================================== */
+
+.podium-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.podium-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  height: 380px;
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.podium-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 180px;
+  opacity: 0;
+  transform: translateY(80px);
+  transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.podium-column.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.podium-card-info {
+  text-align: center;
+  margin-bottom: 0.8rem;
+}
+
+.podium-crown {
+  font-size: 2rem;
+  color: #ffd700;
+  margin-bottom: 0.2rem;
+  animation: pulse 1.5s infinite alternate;
+}
+
+.podium-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.podium-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.podium-pedestal {
+  width: 100%;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.podium-1st .podium-pedestal {
+  height: 240px;
+  background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+}
+
+.podium-2nd .podium-pedestal {
+  height: 180px;
+  background: linear-gradient(180deg, #94a3b8 0%, #475569 100%);
+}
+
+.podium-3rd .podium-pedestal {
+  height: 130px;
+  background: linear-gradient(180deg, #d97706 0%, #78350f 100%);
+}
+
+.podium-rank-number {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+
+.runner-ups-container {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.runner-ups-container.visible {
+  opacity: 1;
+}
+
+.runner-up-pill {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--card-border);
+  padding: 0.6rem 1.2rem;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  backdrop-filter: blur(10px);
+}
+
+/* ===================================================
+   AUTHENTIC KAHOOT PODIUM ANIMATION STYLES
+   =================================================== */
+
+.podium-stage-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.podium-box {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  height: 420px;
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+}
+
+.podium-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 200px;
+  position: relative;
+}
+
+/* Player Card (Name & Score Above Pedestal) */
+.podium-player-card {
+  text-align: center;
+  margin-bottom: 1rem;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.5s ease 0.4s, transform 0.5s ease 0.4s;
+}
+
+.podium-col.revealed .podium-player-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.podium-crown-icon {
+  font-size: 2.2rem;
+  color: #ffd700;
+  margin-bottom: 0.2rem;
+  animation: pulse 1.2s infinite alternate;
+}
+
+.podium-player-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.podium-player-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Rising Pedestals */
+.podium-pedestal-block {
+  width: 100%;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 1rem;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.podium-col.revealed .podium-pedestal-block {
+  transform: scaleY(1);
+}
+
+.podium-col-1st .podium-pedestal-block {
+  height: 250px;
+  background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+}
+
+.podium-col-2nd .podium-pedestal-block {
+  height: 180px;
+  background: linear-gradient(180deg, #94a3b8 0%, #475569 100%);
+}
+
+.podium-col-3rd .podium-pedestal-block {
+  height: 120px;
+  background: linear-gradient(180deg, #d97706 0%, #78350f 100%);
+}
+
+.podium-num {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Runner Ups (4th & 5th Place) */
+.runner-ups-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.runner-ups-bar.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.runner-up-item {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--card-border);
+  padding: 0.6rem 1.2rem;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  backdrop-filter: blur(10px);
+}
+
+/* ===================================================
+   PODIUM CURTAIN & SPOTLIGHT ANIMATIONS
+   =================================================== */
+
+/* Spotlight Dark Overlay */
+.spotlight-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s ease;
+  overflow: hidden;
+}
+
+.spotlight-overlay.active {
+  opacity: 1;
+}
+
+/* The Beam (a transparent circle with a massive dark shadow) */
+.spotlight-beam {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 1s ease, width 1s ease, height 1s ease, box-shadow 1s ease;
+}
+
+/* Searching Animation (9s to 13.5s) */
+.spotlight-overlay.searching .spotlight-beam {
+  animation: searchLight 4s ease-in-out forwards;
+}
+
+/* Highlight 1st Place (13.5s) */
+.spotlight-overlay.highlight-winner .spotlight-beam {
+  transform: translate(-50%, -60%);
+  width: 450px;
+  height: 450px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Slightly lighter shadow for dramatic reveal */
+}
+
+@keyframes searchLight {
+  0% { transform: translate(-250%, -100%); width: 150px; height: 150px; }
+  30% { transform: translate(150%, 50%); width: 250px; height: 250px; }
+  60% { transform: translate(-150%, 80%); width: 180px; height: 180px; }
+  85% { transform: translate(100%, -50%); width: 220px; height: 220px; }
+  100% { transform: translate(-50%, -10%); width: 200px; height: 200px; }
+}
