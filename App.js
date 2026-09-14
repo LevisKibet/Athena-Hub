@@ -772,7 +772,7 @@ function renderHostLobby(stage) {
         
         <div class="lobby-qr-container">
           <!-- Using the static local image for the QR code -->
-          <img id="lobby-qr-img" src="Images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
+          <img id="lobby-qr-img" src="/Images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
         </div>
 
         <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
