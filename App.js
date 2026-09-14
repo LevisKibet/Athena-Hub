@@ -757,7 +757,11 @@ function renderHostStage() {
 
 function renderHostLobby(stage) {
   const players = hostState.snapshot.players || [];
-  const playUrl = `${window.location.origin}/play.html?pin=${hostState.snapshot.game.gamePin}`;
+  
+  // Dynamically resolve the correct path including /Athena-Hub/
+  const playUrlObj = new URL('play.html', window.location.href);
+  playUrlObj.searchParams.set('pin', hostState.snapshot.game.gamePin);
+  const playUrl = playUrlObj.toString();
   
   // Use a reliable QR Code generation API
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(playUrl)}`;
