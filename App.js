@@ -209,7 +209,7 @@ async function fetchMatchesFromDb() {
 
       const cardHtml = `
         <div class="match-card">
-          <div class="match-thumb" style="background-image: linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.65)), url('images/kahoot.jpg');">
+          <div class="match-thumb" style="background-image: linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.65)), url('Images/kahoot.jpg');">
             <span class="thumb-tag" style="background: ${isCreator ? '#10b981' : '#e63946'};">
               ${isCreator ? 'YOUR MATCH' : teamTag}
             </span>
@@ -286,7 +286,7 @@ window.createNewMatchInDb = async function() {
       option_c: 'Paris',
       option_d: 'Madrid',
       correct: 'C',
-      image_url: 'images/kahoot.jpg',
+      image_url: 'Images/kahoot.jpg',
       time_limit: 20
     }]);
 
@@ -379,7 +379,7 @@ function renderQuestionsSidebar() {
       <div class="q-thumb-card ${activeClass}" onclick="loadQuestionIntoCanvas(${idx})">
         <div class="q-thumb-label">${idx + 1}. Round ${q.round || idx + 1}</div>
         <div class="q-thumb-title">${escapeHtml(q.question || 'Untitled Question')}</div>
-        <div class="q-thumb-img-placeholder" style="background-image: url('${q.image_url || 'images/kahoot.jpg'}');"></div>
+        <div class="q-thumb-img-placeholder" style="background-image: url('${q.image_url || 'Images/kahoot.jpg'}');"></div>
       </div>
     `;
     container.insertAdjacentHTML('beforeend', qHtml);
@@ -508,7 +508,7 @@ window.addQuestionToMatch = async function() {
     option_c: 'Option C',
     option_d: 'Option D',
     correct: 'A',
-    image_url: 'images/kahoot.jpg',
+    image_url: 'Images/kahoot.jpg',
     time_limit: 20
   };
 
@@ -799,7 +799,7 @@ function renderHostLobby(stage) {
         
         <div class="lobby-qr-container">
           <!-- Using the static local image for the QR code -->
-          <img id="lobby-qr-img" src="images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
+          <img id="lobby-qr-img" src="Images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
         </div>
 
         <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
