@@ -920,7 +920,7 @@ function renderHostQuestion(stage, revealed) {
     `;
   }).join('');
 
-  const imageUrl = q.imageUrl || q.image_url || 'images/kahoot.jpg';
+  const imageUrl = q.imageUrl || q.image_url || 'Images/kahoot.jpg';
 
   stage.innerHTML = `
     <div style="width:100%; max-width:1000px; margin:0 auto;">
