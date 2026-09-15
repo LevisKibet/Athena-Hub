@@ -55,6 +55,7 @@ let currentConfigs = {};
 let currentQuestions = [];
 let activeQuestionIndex = 0;
 let isOwner = false;
+let isTransitioning = false; // Prevents accidental double-clicks from skipping questions
 
 const hostState = {
   audio: window.QuizArenaAudio ? new window.QuizArenaAudio() : null,
@@ -649,12 +650,38 @@ async function loadHostSnapshot() {
 function setHostSnapshot(snap) {
   if (!snap || !snap.game) return;
   const previous = hostState.snapshot;
+  const prevStatus = (previous && previous.game ? previous.game.status : '').toUpperCase();
+  const status = (snap.game.status || '').toUpperCase();
+
   hostState.snapshot = snap;
   hostState.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
   hostState.gameId = snap.game.id;
 
-  if ((snap.game.status || '').toUpperCase() !== 'FINISHED') {
+  if (status !== 'FINISHED') {
     hostState.finishedRendered = false;
+  }
+
+  // --- STREAK TRACKING LOGIC ---
+  if (!hostState.streaks) hostState.streaks = {};
+  if (!hostState.lastScores) hostState.lastScores = {};
+
+  // When a round is revealed, check who gained points
+  if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
+    (snap.leaderboard || []).forEach(p => {
+      const currentScore = Number(p.totalScore || 0);
+      const oldScore = hostState.lastScores[p.nickname] || 0;
+      
+      if (currentScore > oldScore) {
+        hostState.streaks[p.nickname] = (hostState.streaks[p.nickname] || 0) + 1;
+      } else {
+        hostState.streaks[p.nickname] = 0; // Lost streak
+      }
+      hostState.lastScores[p.nickname] = currentScore;
+    });
+  } else if (status === 'LOBBY') {
+    // Reset streaks if the room is reset
+    hostState.streaks = {};
+    hostState.lastScores = {};
   }
 
   subscribeHostRealtime();
@@ -749,7 +776,7 @@ function renderHostStage() {
   if (status === 'PRECOUNTDOWN') return renderHostPrecountdown(stage);
   if (status === 'QUESTION') return renderHostQuestion(stage, false);
   if (status === 'REVEAL') return renderHostQuestion(stage, true);
-  if (status === 'LEADERBOARD') return renderHostLeaderboard(stage, false);
+  if (status === 'LEADERBOARD') return renderHostLeaderboard(stage);
   if (status === 'FINISHED') return renderHostFinished(stage);
 
   stage.innerHTML = `<div class="info-modal" style="display:block;"><h3>Unknown Status (${escapeHtml(hostState.snapshot.game.status)})</h3></div>`;
@@ -772,7 +799,7 @@ function renderHostLobby(stage) {
         
         <div class="lobby-qr-container">
           <!-- Using the static local image for the QR code -->
-          <img id="lobby-qr-img" src="/Images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
+          <img id="lobby-qr-img" src="images/loginqr.png" alt="Game QR Code" style="width:180px; height:180px; display:block; border-radius:12px;" />
         </div>
 
         <button class="copy-url-btn" onclick="copyPlayUrl('${escapeAttr(playUrl)}')">
@@ -926,6 +953,88 @@ function renderHostQuestion(stage, revealed) {
   `;
 }
 
+function renderHostLeaderboard(stage) {
+  const rows = hostState.snapshot.leaderboard || [];
+  
+  // 1. Capture current positions for the FLIP animation
+  const oldPositions = {};
+  const existingRows = stage.querySelectorAll('.lb-row');
+  existingRows.forEach(row => {
+    oldPositions[row.dataset.nick] = row.getBoundingClientRect().top;
+  });
+
+  // 2. Render new HTML with Streak Badges
+  stage.innerHTML = `
+    <section class="card" style="max-width:700px; margin:0 auto; padding:2rem;">
+      <h1 style="text-align:center; font-size:2.5rem; margin-bottom:1.5rem;">Leaderboard</h1>
+      <div id="lb-container" style="display:flex; flex-direction:column; gap:0.8rem; position:relative;">
+        
+        ${rows.map((p, i) => {
+          const nick = escapeHtml(p.nickname || '');
+          const streakCount = (hostState.streaks && hostState.streaks[p.nickname]) ? hostState.streaks[p.nickname] : 0;
+          
+          // Only show fire if they have a streak of 2 or more
+          const streakHtml = streakCount >= 2 
+            ? `<div style="display:inline-flex; align-items:center; color:#ff8a00; background:rgba(255, 138, 0, 0.15); border: 1px solid rgba(255,138,0,0.3); padding:0.2rem 0.6rem; border-radius:12px; font-size:0.95rem; font-weight:800; margin-right:1rem;">
+                 <i class="fa-solid fa-fire" style="margin-right:0.3rem;"></i> ${streakCount}
+               </div>` 
+            : '';
+
+          return `
+          <div class="lb-row" data-nick="${nick}" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:0.8rem 1.2rem; border-radius:16px;">
+            <div style="display:flex; align-items:center; gap:1rem;">
+              <strong style="font-size:1.2rem; color:var(--accent-color);">#${p.rank || i + 1}</strong>
+              <span style="font-size:1.1rem; font-weight:700;">${nick}</span>
+            </div>
+            <div style="display:flex; align-items:center;">
+              ${streakHtml}
+              <strong style="font-size:1.2rem;">${Number(p.totalScore || 0).toLocaleString()} pts</strong>
+            </div>
+          </div>
+        `}).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+        
+      </div>
+      <div class="actions" style="justify-content:center; margin-top:2rem;">
+        <button class="btn-create-match" onclick="advanceHostGame()">Next Question</button>
+      </div>
+    </section>
+  `;
+
+  // 3. Apply the FLIP transition logic to the newly rendered rows
+  requestAnimationFrame(() => {
+    const newRows = stage.querySelectorAll('.lb-row');
+    newRows.forEach(row => {
+      const nick = row.dataset.nick;
+      
+      if (oldPositions[nick] !== undefined) {
+        const newTop = row.getBoundingClientRect().top;
+        const delta = oldPositions[nick] - newTop;
+        
+        if (delta !== 0) {
+          // Invert: instantly move the row back to its old position
+          row.style.transform = `translateY(${delta}px)`;
+          row.style.transition = 'none';
+
+          // Play: animate it smoothly to its actual new position
+          requestAnimationFrame(() => {
+            row.style.transform = 'translateY(0)';
+            row.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          });
+        }
+      } else {
+        // If a new player joins mid-game, pop them in smoothly
+        row.style.opacity = '0';
+        row.style.transform = 'translateY(20px)';
+        requestAnimationFrame(() => {
+          row.style.opacity = '1';
+          row.style.transform = 'translateY(0)';
+          row.style.transition = 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        });
+      }
+    });
+  });
+}
+
 function renderHostFinished(stage) {
   const rows = hostState.snapshot.leaderboard || [];
   
@@ -1006,25 +1115,25 @@ function renderHostFinished(stage) {
 
     // --- SEQUENTIAL PODIUM REVEAL & SPOTLIGHT TIMINGS ---
 
-    // 1. Reveal 3rd Place at 5.0 seconds
+    // 1. Reveal 3rd Place at 6.0 seconds
     setTimeout(() => {
       const col3 = document.getElementById('podium-col-3rd');
       if (col3) col3.classList.add('revealed');
-    }, 5000);
+    }, 6000);
 
-    // 2. Reveal 2nd Place at 9.0 seconds
+    // 2. Reveal 2nd Place at 10.0 seconds
     setTimeout(() => {
       const col2 = document.getElementById('podium-col-2nd');
       if (col2) col2.classList.add('revealed');
-    }, 9000);
+    }, 10000);
 
-    // 3. Dim lights and start searching spotlight at 9.5 seconds
+    // 3. Dim lights and start searching spotlight at 10.5 seconds
     setTimeout(() => {
       const spotlight = document.getElementById('spotlight-overlay');
       if (spotlight) spotlight.classList.add('active', 'searching');
-    }, 9500);
+    }, 10500);
 
-    // 4. Reveal 1st Place, Snap Spotlight, and Confetti at 13.5 seconds
+    // 4. Reveal 1st Place, Snap Spotlight, and Confetti at 14.5 seconds
     setTimeout(() => {
       const col1 = document.getElementById('podium-col-1st');
       const runnerBar = document.getElementById('runner-ups-bar');
@@ -1033,7 +1142,6 @@ function renderHostFinished(stage) {
       if (col1) col1.classList.add('revealed');
       if (runnerBar) runnerBar.classList.add('revealed');
       
-      // Snap spotlight to winner
       if (spotlight) {
         spotlight.classList.remove('searching');
         spotlight.classList.add('highlight-winner');
@@ -1046,59 +1154,17 @@ function renderHostFinished(stage) {
         setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.8, y: 0.6 }, zIndex: 1000 }), 800);
       }
 
-      // 5. Fade out the spotlight completely after a short highlight so players can see the full screen
       setTimeout(() => {
         if (spotlight) spotlight.classList.remove('active');
       }, 2000);
 
-    }, 13500);
+    }, 14500);
   }
 }
 
-function renderDistribution(stats, correct) {
-  const max = Math.max(1, stats.A || 0, stats.B || 0, stats.C || 0, stats.D || 0);
-  return ['A','B','C','D'].map(function(letter) {
-    const count = Number(stats[letter] || 0);
-    const width = Math.round((count / max) * 100);
-    const isCorrect = letter === correct;
-    return `
-      <div style="display:flex; align-items:center; gap:0.8rem; margin:0.6rem 0;">
-        <strong style="width:20px;">${letter}</strong>
-        <div style="flex:1; background:rgba(0,0,0,0.2); height:16px; border-radius:8px; overflow:hidden;">
-          <div style="width:${width}%; height:100%; background:${isCorrect ? '#10b981' : '#ef4444'};"></div>
-        </div>
-        <strong>${count}</strong>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderHostLeaderboard(stage) {
-  const rows = hostState.snapshot.leaderboard || [];
-  stage.innerHTML = `
-    <section class="card" style="max-width:700px; margin:0 auto; padding:2rem;">
-      <h1 style="text-align:center; font-size:2.5rem; margin-bottom:1.5rem;">Leaderboard</h1>
-      <div style="display:flex; flex-direction:column; gap:0.8rem;">
-        ${rows.map((p, i) => `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:0.8rem 1.2rem; border-radius:16px;">
-            <div style="display:flex; align-items:center; gap:1rem;">
-              <strong style="font-size:1.2rem; color:var(--accent-color);">#${p.rank || i + 1}</strong>
-              <span style="font-size:1.1rem; font-weight:700;">${escapeHtml(p.nickname || '')}</span>
-            </div>
-            <strong style="font-size:1.2rem;">${Number(p.totalScore || 0).toLocaleString()} pts</strong>
-          </div>
-        `).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
-      </div>
-      <div class="actions" style="justify-content:center; margin-top:2rem;">
-        <button class="btn-create-match" onclick="advanceHostGame()">Next Question</button>
-      </div>
-    </section>
-  `;
-}
-
-
-
 async function advanceHostGame() {
+  if (isTransitioning) return;
+  isTransitioning = true;
   try {
     clearTimeout(hostState.autoAdvanceTimer);
     hostState.finishedRendered = false;
@@ -1109,10 +1175,14 @@ async function advanceHostGame() {
     setHostSnapshot(snap);
   } catch (err) {
     showHostError(err.message || err);
+  } finally {
+    setTimeout(() => isTransitioning = false, 500); // 500ms debounce
   }
 }
 
 async function revealHostRound(reason) {
+  if (isTransitioning) return;
+  isTransitioning = true;
   try {
     hostState.finishedRendered = false;
     const snap = await hostRpc('qa_reveal_round', {
@@ -1123,15 +1193,21 @@ async function revealHostRound(reason) {
     setHostSnapshot(snap);
   } catch (err) {
     showHostError(err.message || err);
+  } finally {
+    setTimeout(() => isTransitioning = false, 500);
   }
 }
 
 async function resetHostGame() {
+  if (isTransitioning) return;
   if (!confirm('Reset the room and remove players/scores?')) return;
+  
+  isTransitioning = true;
   clearTimeout(hostState.autoAdvanceTimer);
   hostState.confettiFired = false;
   hostState.finishedRendered = false;
   hostState.revealRequestedFor = '';
+  
   try {
     const snap = await hostRpc('qa_reset_game', {
       p_game_pin: hostState.gamePin,
@@ -1141,6 +1217,8 @@ async function resetHostGame() {
     setHostSnapshot(snap);
   } catch (err) {
     showHostError(err.message || err);
+  } finally {
+    setTimeout(() => isTransitioning = false, 500);
   }
 }
 
@@ -1155,6 +1233,9 @@ function handleAudioTransitions(prev, next) {
     hostState.audio.playMusic('Music/Kahoot Lobby Music.mp3', true);
   } else if (status === 'PRECOUNTDOWN') {
     hostState.audio.playMusic('Music/321-countdown.mp3', false);
+    if (hostState.audio.currentAudio) {
+      hostState.audio.currentAudio.volume = 0.25; 
+    }
   } else if (status === 'QUESTION') {
     const q = next.question || {};
     const timerLimit = Number(q.timeLimit || next.game.questionTimerLimit || 20);
@@ -1171,6 +1252,9 @@ function handleAudioTransitions(prev, next) {
   } else if (status === 'FINISHED') {
     hostState.audio.stopMusic();
     hostState.audio.playMusic('Music/Kahoot Podium animation.mp3', false);
+    if (hostState.audio.currentAudio) {
+      hostState.audio.currentAudio.volume = 1.0; 
+    }
   }
 }
 
