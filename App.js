@@ -516,12 +516,14 @@ window.openMatchEditor = async function(gameId) {
     const btnDelete = document.getElementById('btn-delete-q');
     const btnImport = document.getElementById('btn-import-q');
     const btnGenerate = document.getElementById('btn-generate-q');
+    const mediaControls = document.getElementById('editor-media-controls');
 
     if (btnAdd) btnAdd.style.display = isOwner ? 'flex' : 'none';
     if (btnSave) btnSave.style.display = isOwner ? 'flex' : 'none';
     if (btnDelete) btnDelete.style.display = isOwner ? 'flex' : 'none';
     if (btnImport) btnImport.style.display = isOwner ? 'flex' : 'none';
     if (btnGenerate) btnGenerate.style.display = isOwner ? 'flex' : 'none';
+    if (mediaControls) mediaControls.style.display = isOwner ? 'flex' : 'none';
 
     const titleVal = currentConfigs.title ? currentConfigs.title.value : `Match PIN: ${game.game_pin}`;
     const titleInput = document.getElementById('editor-game-title');
@@ -763,6 +765,98 @@ window.updateMatchTitle = async function(newTitle) {
       .select()
       .single();
     if (data) currentConfigs.title = data;
+  }
+};
+
+// ===================================================
+// 3c. MANUAL IMAGE OVERRIDE (URL or device upload)
+// ===================================================
+function preloadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('That URL did not load as an image.'));
+    img.src = url;
+  });
+}
+
+async function updateQuestionImage(q, url) {
+  const { error } = await supabaseClient
+    .from('questions')
+    .update({ image_url: url, updated_at: new Date().toISOString() })
+    .eq('id', q.id);
+
+  if (error) throw new Error(error.message);
+
+  q.image_url = url;
+  renderQuestionsSidebar();
+  window.loadQuestionIntoCanvas(activeQuestionIndex);
+}
+
+window.applyImageUrl = async function() {
+  if (!isOwner) return;
+
+  const urlInput = document.getElementById('editor-image-url-input');
+  const status = document.getElementById('editor-image-status');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const q = currentQuestions[activeQuestionIndex];
+  if (!q) return;
+
+  const url = urlInput ? urlInput.value.trim() : '';
+  if (!url) {
+    setStatus('Paste an image URL first.', 'error');
+    return;
+  }
+
+  setStatus('Loading image...', 'is-loading');
+
+  try {
+    await preloadImage(url);
+    await updateQuestionImage(q, url);
+    setStatus('Image updated.', '');
+    if (urlInput) urlInput.value = '';
+  } catch (err) {
+    setStatus(err.message || 'Could not load that image URL.', 'error');
+  }
+};
+
+window.handleImageFileUpload = async function(evt) {
+  if (!isOwner) return;
+
+  const file = evt.target.files && evt.target.files[0];
+  const status = document.getElementById('editor-image-status');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const q = currentQuestions[activeQuestionIndex];
+  if (!file || !q) return;
+
+  if (!file.type.startsWith('image/')) {
+    setStatus('Please choose an image file.', 'error');
+    evt.target.value = '';
+    return;
+  }
+
+  setStatus('Uploading image...', 'is-loading');
+
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${q.id}-${Date.now()}.${ext}`;
+
+    const { error: uploadErr } = await supabaseClient
+      .storage
+      .from('question-images')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+
+    if (uploadErr) throw new Error(uploadErr.message);
+
+    const { data } = supabaseClient.storage.from('question-images').getPublicUrl(path);
+    await updateQuestionImage(q, data.publicUrl);
+    setStatus('Image uploaded.', '');
+  } catch (err) {
+    setStatus(err.message || 'Upload failed.', 'error');
+  } finally {
+    evt.target.value = '';
   }
 };
 

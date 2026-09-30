@@ -722,6 +722,19 @@ body.dark-mode .stat-box { background: rgba(0, 0, 0, 0.3); }
   box-shadow: 0 8px 32px var(--shadow-color);
 }
 
+.media-canvas-controls {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  max-width: 460px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.media-canvas-controls .ai-modal-input {
+  min-width: 0;
+}
+
 .answers-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

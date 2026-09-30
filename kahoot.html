@@ -6,7 +6,7 @@
   <title>Kahoot Arena | Athena Game Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -157,6 +157,17 @@
           </div>
           <input type="text" id="editor-q-prompt" class="question-prompt-box" value="Question Prompt Here" />
           <div class="media-canvas" id="editor-media-canvas"></div>
+          <div class="media-canvas-controls" id="editor-media-controls">
+            <input type="text" id="editor-image-url-input" class="ai-modal-input" placeholder="Paste an image URL..." style="flex:1;" />
+            <button class="btn-back" onclick="applyImageUrl()">
+              <i class="fa-solid fa-link"></i> Use URL
+            </button>
+            <label class="btn-back" style="cursor:pointer; margin:0;">
+              <i class="fa-solid fa-upload"></i> Upload
+              <input type="file" id="editor-image-file-input" accept="image/*" style="display:none;" onchange="handleImageFileUpload(event)" />
+            </label>
+          </div>
+          <div class="ai-modal-status" id="editor-image-status" style="max-width:460px; margin:0 auto; text-align:center;"></div>
           <div class="answers-grid">
             <div class="ans-card ans-red">
               <div class="ans-left">
@@ -312,6 +323,6 @@
   </div>
 
   <script src="audio.js"></script>
-  <script src="App.js?v=7"></script>
+  <script src="App.js?v=8"></script>
 </body>
 </html>
