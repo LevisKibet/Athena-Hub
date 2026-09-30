@@ -6,7 +6,7 @@
   <title>Kahoot Arena | Athena Game Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -39,10 +39,9 @@
             <i class="fa-solid fa-right-to-bracket"></i> Sign In
           </button>
         </div>
-        <div id="auth-signed-in" style="display:none; align-items:center; gap:0.6rem;">
-          <span id="auth-user-email" class="control-pill" style="padding:0.4rem 0.9rem;"></span>
-          <button class="btn-back" onclick="signOutUser()">
-            <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+        <div id="auth-signed-in" style="display:none;">
+          <button class="btn-back" onclick="openAccountModal()">
+            <i class="fa-solid fa-circle-user"></i> <span id="auth-user-label">Account</span>
           </button>
         </div>
         <button id="muteBtn" class="btn-back" style="padding:0.4rem 0.8rem;">
@@ -213,6 +212,30 @@
       <section id="hostStage"></section>
     </main>
 
+    <!-- ACCOUNT SETTINGS MODAL -->
+    <div class="ai-modal-overlay" id="account-modal-overlay">
+      <div class="ai-modal-card">
+        <h3><i class="fa-solid fa-circle-user"></i> Account Settings</h3>
+        <p class="subtle">Signed in as <strong id="account-email-display"></strong></p>
+        <div class="ai-modal-field">
+          <label>Display Name</label>
+          <input type="text" id="account-name-input" class="ai-modal-input" placeholder="Your name" />
+        </div>
+        <div class="ai-modal-status" id="account-modal-status"></div>
+        <div class="ai-modal-actions" style="justify-content: space-between;">
+          <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="signOutUser()">
+            <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+          </button>
+          <div style="display:flex; gap:0.8rem;">
+            <button class="btn-back" onclick="closeAccountModal()">Close</button>
+            <button class="btn-create-match" id="account-modal-submit" onclick="submitAccountSettings()">
+              <i class="fa-solid fa-floppy-disk"></i> Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- SIGN IN MODAL -->
     <div class="ai-modal-overlay" id="signin-modal-overlay">
       <div class="ai-modal-card">
@@ -302,6 +325,6 @@
   </div>
 
   <script src="audio.js"></script>
-  <script src="App.js?v=3"></script>
+  <script src="App.js?v=4"></script>
 </body>
 </html>

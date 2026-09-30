@@ -110,14 +110,20 @@ async function initAuth() {
 function updateAuthUI() {
   const signedOutEl = document.getElementById('auth-signed-out');
   const signedInEl = document.getElementById('auth-signed-in');
-  const emailEl = document.getElementById('auth-user-email');
+  const labelEl = document.getElementById('auth-user-label');
   const settingsInfo = document.getElementById('settings-account-info');
+  const accountEmailDisplay = document.getElementById('account-email-display');
+  const accountNameInput = document.getElementById('account-name-input');
 
   if (currentUser) {
+    const displayName = (currentUser.user_metadata && currentUser.user_metadata.full_name) || '';
+
     if (signedOutEl) signedOutEl.style.display = 'none';
     if (signedInEl) signedInEl.style.display = 'flex';
-    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+    if (labelEl) labelEl.textContent = displayName || (currentUser.email || 'Account').split('@')[0];
     if (settingsInfo) settingsInfo.textContent = `Signed in as ${currentUser.email || currentUser.id}`;
+    if (accountEmailDisplay) accountEmailDisplay.textContent = currentUser.email || '';
+    if (accountNameInput) accountNameInput.value = displayName;
   } else {
     if (signedOutEl) signedOutEl.style.display = 'flex';
     if (signedInEl) signedInEl.style.display = 'none';
@@ -149,7 +155,7 @@ window.submitSignIn = async function() {
     return;
   }
 
-  setStatus('Sending magic link...', 'loading');
+  setStatus('Sending magic link...', 'is-loading');
   if (submitBtn) submitBtn.disabled = true;
 
   try {
@@ -169,6 +175,47 @@ window.submitSignIn = async function() {
 window.signOutUser = async function() {
   if (!supabaseClient) return;
   await supabaseClient.auth.signOut();
+  window.closeAccountModal();
+};
+
+window.openAccountModal = function() {
+  if (!currentUser) return;
+  const overlay = document.getElementById('account-modal-overlay');
+  const status = document.getElementById('account-modal-status');
+  if (status) { status.textContent = ''; status.className = 'ai-modal-status'; }
+  updateAuthUI();
+  if (overlay) overlay.classList.add('open');
+};
+
+window.closeAccountModal = function() {
+  const overlay = document.getElementById('account-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+};
+
+window.submitAccountSettings = async function() {
+  if (!supabaseClient || !currentUser) return;
+
+  const nameInput = document.getElementById('account-name-input');
+  const status = document.getElementById('account-modal-status');
+  const submitBtn = document.getElementById('account-modal-submit');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const name = nameInput ? nameInput.value.trim() : '';
+
+  setStatus('Saving...', 'is-loading');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const { data, error } = await supabaseClient.auth.updateUser({ data: { full_name: name } });
+    if (error) throw error;
+    currentUser = data.user;
+    updateAuthUI();
+    setStatus('Saved!', '');
+  } catch (err) {
+    setStatus(err.message || 'Could not save.', 'error');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 };
 
 // ===================================================
@@ -788,7 +835,7 @@ window.submitImportQuestions = async function() {
     return;
   }
 
-  setStatus('Reading file...', 'loading');
+  setStatus('Reading file...', 'is-loading');
   if (submitBtn) submitBtn.disabled = true;
 
   try {
@@ -808,7 +855,7 @@ window.submitImportQuestions = async function() {
       payload.document_text = result.value;
     }
 
-    setStatus('Asking Gemini to extract questions... this can take a moment.', 'loading');
+    setStatus('Asking Gemini to extract questions... this can take a moment.', 'is-loading');
 
     const { data, error } = await supabaseClient.functions.invoke('gemini-questions', { body: payload });
 
@@ -841,7 +888,7 @@ window.submitGenerateQuestions = async function() {
     return;
   }
 
-  setStatus('Generating questions with Gemini...', 'loading');
+  setStatus('Generating questions with Gemini...', 'is-loading');
   if (submitBtn) submitBtn.disabled = true;
 
   try {

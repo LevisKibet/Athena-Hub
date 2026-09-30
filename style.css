@@ -42,6 +42,7 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text-color);
   display: flex;
   justify-content: center;
@@ -1586,4 +1587,4 @@ body.host-active .bottom-bar {
 .ai-modal-actions { display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 1.4rem; }
 .ai-modal-status { font-size: 0.85rem; margin-top: 0.4rem; min-height: 1.2rem; color: var(--text-muted); }
 .ai-modal-status.error { color: #ef4444; font-weight: 700; }
-.ai-modal-status.loading { color: var(--accent-color); font-weight: 700; }
+.ai-modal-status.is-loading { color: var(--accent-color); font-weight: 700; }
