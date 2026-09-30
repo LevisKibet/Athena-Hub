@@ -1372,7 +1372,7 @@ body.host-active .bottom-bar {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  transition: transform 1s ease, width 1s ease, height 1s ease, box-shadow 1s ease;
+  transition: transform 1.6s cubic-bezier(0.22, 1, 0.36, 1), width 1.6s cubic-bezier(0.22, 1, 0.36, 1), height 1.6s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 1.6s ease;
 }
 
 /* Searching Animation (9s to 13.5s) */
@@ -1530,3 +1530,60 @@ body.host-active .bottom-bar {
   .controller-btn { min-height: 120px; font-size: 2.5rem; }
   .join-card { padding: 1.5rem; }
 }
+
+/* ===================================================
+   AI IMPORT / GENERATE MODALS
+   =================================================== */
+
+.ai-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.ai-modal-overlay.open {
+  display: flex;
+}
+
+.ai-modal-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.ai-modal-card h3 { font-size: 1.3rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem; }
+.ai-modal-card .subtle { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.2rem; line-height: 1.4; }
+
+.ai-modal-field { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+.ai-modal-field label { font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+
+.ai-modal-input,
+.ai-modal-select {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--card-border);
+  color: var(--text-color);
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+}
+
+.ai-modal-actions { display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 1.4rem; }
+.ai-modal-status { font-size: 0.85rem; margin-top: 0.4rem; min-height: 1.2rem; color: var(--text-muted); }
+.ai-modal-status.error { color: #ef4444; font-weight: 700; }
+.ai-modal-status.loading { color: var(--accent-color); font-weight: 700; }

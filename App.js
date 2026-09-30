@@ -32,6 +32,33 @@ function getOrCreateUserKey() {
 
 const USER_KEY = getOrCreateUserKey();
 
+function getOrCreateHostSessionId() {
+  try {
+    let id = sessionStorage.getItem('athena_host_session_id');
+    if (id) return id;
+    const bytes = new Uint8Array(8);
+    if (window.crypto && crypto.getRandomValues) {
+      crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = Math.floor(Math.random() * 256);
+      }
+    }
+    id = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    try {
+      sessionStorage.setItem('athena_host_session_id', id);
+    } catch (storageErr) {
+      console.warn('Athena Hub: sessionStorage unavailable.');
+    }
+    return id;
+  } catch (err) {
+    return 'hsess_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+const HOST_SESSION_ID = getOrCreateHostSessionId();
+const HOST_LOCK_STALE_MS = 12000; // ms of silence before a host lock is considered abandoned
+
 let supabaseClient = null;
 try {
   if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
@@ -74,7 +101,10 @@ const hostState = {
   finishedRendered: false,
   muted: false,
   loading: false,
-  snapshotQueued: false
+  snapshotQueued: false,
+  isController: false,
+  lockHeartbeatTimer: null,
+  finishedRevealScheduled: false
 };
 
 const INDEX_TO_CHOICE = ['A', 'B', 'C', 'D'];
@@ -94,6 +124,9 @@ window.showKahootView = function(view) {
   if (!kahootView || !editorView || !hostView) return;
 
   clearTimeout(hostState.autoAdvanceTimer);
+  if (view !== 'host') {
+    clearInterval(hostState.lockHeartbeatTimer);
+  }
 
   kahootView.style.display = 'none';
   editorView.style.display = 'none';
@@ -335,10 +368,14 @@ window.openMatchEditor = async function(gameId) {
     const btnAdd = document.getElementById('btn-add-q');
     const btnSave = document.getElementById('btn-save-q');
     const btnDelete = document.getElementById('btn-delete-q');
+    const btnImport = document.getElementById('btn-import-q');
+    const btnGenerate = document.getElementById('btn-generate-q');
 
     if (btnAdd) btnAdd.style.display = isOwner ? 'flex' : 'none';
     if (btnSave) btnSave.style.display = isOwner ? 'flex' : 'none';
     if (btnDelete) btnDelete.style.display = isOwner ? 'flex' : 'none';
+    if (btnImport) btnImport.style.display = isOwner ? 'flex' : 'none';
+    if (btnGenerate) btnGenerate.style.display = isOwner ? 'flex' : 'none';
 
     const titleVal = currentConfigs.title ? currentConfigs.title.value : `Match PIN: ${game.game_pin}`;
     const titleInput = document.getElementById('editor-game-title');
@@ -578,12 +615,262 @@ window.updateMatchTitle = async function(newTitle) {
 };
 
 // ===================================================
+// 3b. AI IMPORT / GENERATE QUESTIONS (Gemini via Supabase Edge Function)
+// ===================================================
+window.openImportModal = function() {
+  if (!isOwner) return;
+  const overlay = document.getElementById('import-modal-overlay');
+  const status = document.getElementById('import-modal-status');
+  const fileInput = document.getElementById('import-file-input');
+  const maxQ = document.getElementById('import-max-questions');
+  if (status) { status.textContent = ''; status.className = 'ai-modal-status'; }
+  if (fileInput) fileInput.value = '';
+  if (maxQ) maxQ.value = '';
+  if (overlay) overlay.classList.add('open');
+};
+
+window.closeImportModal = function() {
+  const overlay = document.getElementById('import-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+};
+
+window.openGenerateModal = function() {
+  if (!isOwner) return;
+  const overlay = document.getElementById('generate-modal-overlay');
+  const status = document.getElementById('generate-modal-status');
+  if (status) { status.textContent = ''; status.className = 'ai-modal-status'; }
+  if (overlay) overlay.classList.add('open');
+};
+
+window.closeGenerateModal = function() {
+  const overlay = document.getElementById('generate-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+};
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const commaIdx = result.indexOf(',');
+      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function insertGeneratedQuestions(questions) {
+  if (!currentMatch || !Array.isArray(questions) || questions.length === 0) return;
+
+  const startOrder = currentQuestions.length + 1;
+  const rows = questions.map((q, idx) => ({
+    game_id: currentMatch.id,
+    sort_order: startOrder + idx,
+    round: String(startOrder + idx),
+    question: q.question,
+    option_a: q.option_a,
+    option_b: q.option_b,
+    option_c: q.option_c,
+    option_d: q.option_d,
+    correct: q.correct,
+    image_url: 'Images/kahoot.jpg',
+    time_limit: 20
+  }));
+
+  const { data, error } = await supabaseClient
+    .from('questions')
+    .insert(rows)
+    .select();
+
+  if (error) throw new Error(error.message);
+
+  const inserted = data || [];
+  currentQuestions = currentQuestions.concat(inserted);
+  renderQuestionsSidebar();
+  if (inserted.length > 0) {
+    window.loadQuestionIntoCanvas(currentQuestions.length - inserted.length);
+  }
+}
+
+window.submitImportQuestions = async function() {
+  if (!isOwner || !currentMatch) return;
+
+  const fileInput = document.getElementById('import-file-input');
+  const maxQInput = document.getElementById('import-max-questions');
+  const status = document.getElementById('import-modal-status');
+  const submitBtn = document.getElementById('import-modal-submit');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const file = fileInput && fileInput.files && fileInput.files[0];
+  if (!file) {
+    setStatus('Choose a PDF or .docx file first.', 'error');
+    return;
+  }
+
+  const nameLower = file.name.toLowerCase();
+  const isPdf = file.type === 'application/pdf' || nameLower.endsWith('.pdf');
+  const isDocx = nameLower.endsWith('.docx');
+  const isOldDoc = nameLower.endsWith('.doc') && !isDocx;
+
+  if (isOldDoc) {
+    setStatus("The old .doc format isn't supported \u2014 please save the file as .docx or PDF and try again.", 'error');
+    return;
+  }
+  if (!isPdf && !isDocx) {
+    setStatus('Please upload a PDF or .docx file.', 'error');
+    return;
+  }
+
+  setStatus('Reading file...', 'loading');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const payload = {
+      action: 'extract',
+      game_id: currentMatch.id,
+      host_token: USER_KEY,
+      max_questions: maxQInput && maxQInput.value ? Number(maxQInput.value) : null
+    };
+
+    if (isPdf) {
+      payload.file_base64 = await readFileAsBase64(file);
+      payload.mime_type = 'application/pdf';
+    } else {
+      if (!window.mammoth) throw new Error('Word document reader failed to load. Please refresh and try again.');
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await window.mammoth.extractRawText({ arrayBuffer });
+      payload.document_text = result.value;
+    }
+
+    setStatus('Asking Gemini to extract questions... this can take a moment.', 'loading');
+
+    const { data, error } = await supabaseClient.functions.invoke('gemini-questions', { body: payload });
+
+    if (error) throw new Error(error.message || 'Import failed.');
+    if (data && data.error) throw new Error(data.error);
+
+    await insertGeneratedQuestions(data.questions);
+    setStatus(`Imported ${data.questions.length} question(s).`, '');
+    setTimeout(() => window.closeImportModal(), 900);
+  } catch (err) {
+    setStatus(err.message || 'Import failed.', 'error');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+
+window.submitGenerateQuestions = async function() {
+  if (!isOwner || !currentMatch) return;
+
+  const topicInput = document.getElementById('generate-topic');
+  const countInput = document.getElementById('generate-count');
+  const difficultySelect = document.getElementById('generate-difficulty');
+  const status = document.getElementById('generate-modal-status');
+  const submitBtn = document.getElementById('generate-modal-submit');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const topic = topicInput ? topicInput.value.trim() : '';
+  if (!topic) {
+    setStatus('Enter a topic first.', 'error');
+    return;
+  }
+
+  setStatus('Generating questions with Gemini...', 'loading');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('gemini-questions', {
+      body: {
+        action: 'generate',
+        game_id: currentMatch.id,
+        host_token: USER_KEY,
+        topic,
+        count: countInput ? Number(countInput.value) : 5,
+        difficulty: difficultySelect ? difficultySelect.value : 'medium'
+      }
+    });
+
+    if (error) throw new Error(error.message || 'Generation failed.');
+    if (data && data.error) throw new Error(data.error);
+
+    await insertGeneratedQuestions(data.questions);
+    setStatus(`Generated ${data.questions.length} question(s).`, '');
+    setTimeout(() => window.closeGenerateModal(), 900);
+  } catch (err) {
+    setStatus(err.message || 'Generation failed.', 'error');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+
+// ===================================================
 // 4. LIVE KAHOOT STADIUM HOST ENGINE (OM SYNC SYSTEM)
 // ===================================================
 async function hostRpc(name, args) {
   const { data, error } = await supabaseClient.rpc(name, args || {});
   if (error) throw new Error(error.message || JSON.stringify(error));
   return data;
+}
+
+async function claimHostLock(gameId) {
+  try {
+    const { data: rows } = await supabaseClient
+      .from('config')
+      .select('*')
+      .eq('game_id', gameId)
+      .in('key', ['host_session_id', 'host_session_ts']);
+
+    const map = {};
+    (rows || []).forEach(r => { map[r.key] = r; });
+
+    const existingSession = map.host_session_id ? map.host_session_id.value : '';
+    const existingTs = map.host_session_ts ? Number(map.host_session_ts.value) : 0;
+    const isStale = (Date.now() - existingTs) > HOST_LOCK_STALE_MS;
+    const isOurs = existingSession === HOST_SESSION_ID;
+
+    if (existingSession && !isStale && !isOurs) {
+      hostState.isController = false;
+      return false;
+    }
+
+    const nowStr = String(Date.now());
+
+    if (map.host_session_id) {
+      await supabaseClient.from('config').update({ value: HOST_SESSION_ID, updated_at: new Date().toISOString() }).eq('id', map.host_session_id.id);
+    } else {
+      await supabaseClient.from('config').insert([{ game_id: gameId, key: 'host_session_id', value: HOST_SESSION_ID }]);
+    }
+
+    if (map.host_session_ts) {
+      await supabaseClient.from('config').update({ value: nowStr, updated_at: new Date().toISOString() }).eq('id', map.host_session_ts.id);
+    } else {
+      await supabaseClient.from('config').insert([{ game_id: gameId, key: 'host_session_ts', value: nowStr }]);
+    }
+
+    hostState.isController = true;
+    return true;
+  } catch (err) {
+    console.error('Athena Hub: host lock check failed, defaulting to controller:', err);
+    hostState.isController = true;
+    return true;
+  }
+}
+
+function startHostLockHeartbeat(gameId) {
+  clearInterval(hostState.lockHeartbeatTimer);
+  hostState.lockHeartbeatTimer = setInterval(async () => {
+    if (!hostState.isController) return;
+    try {
+      await supabaseClient
+        .from('config')
+        .update({ value: String(Date.now()), updated_at: new Date().toISOString() })
+        .eq('game_id', gameId)
+        .eq('key', 'host_session_ts');
+    } catch (err) {
+      // Non-fatal: a missed heartbeat just risks losing the lock to a takeover.
+    }
+  }, 4000);
 }
 
 window.hostMatch = async function(gameId) {
@@ -607,6 +894,13 @@ window.hostMatch = async function(gameId) {
     hostState.gameId = game.id;
     hostState.gamePin = game.game_pin;
     hostState.hostToken = game.host_token;
+
+    const gotLock = await claimHostLock(gameId);
+    if (gotLock) {
+      startHostLockHeartbeat(gameId);
+    } else {
+      clearInterval(hostState.lockHeartbeatTimer);
+    }
 
     if (hostState.audio) {
       hostState.audio.unlock();
@@ -659,6 +953,7 @@ function setHostSnapshot(snap) {
 
   if (status !== 'FINISHED') {
     hostState.finishedRendered = false;
+    hostState.finishedRevealScheduled = false;
   }
 
   // --- STREAK TRACKING LOGIC ---
@@ -740,7 +1035,7 @@ function updateHostLiveTimer() {
 
     if (remaining <= 0.05 && hostState.revealRequestedFor !== 'begin-' + g.currentRound) {
       hostState.revealRequestedFor = 'begin-' + g.currentRound;
-      advanceHostGame();
+      if (hostState.isController) advanceHostGame();
     }
     return;
   }
@@ -761,7 +1056,7 @@ function updateHostLiveTimer() {
 
     if (remaining <= 0.05 && hostState.revealRequestedFor !== 'reveal-' + g.currentRound) {
       hostState.revealRequestedFor = 'reveal-' + g.currentRound;
-      revealHostRound('timer');
+      if (hostState.isController) revealHostRound('timer');
     }
   }
 }
@@ -827,13 +1122,19 @@ function renderHostLobby(stage) {
           </div>
         </div>
 
-        <div class="actions" style="justify-content:flex-end; gap:1rem; margin-top:1.5rem; display:flex;">
-          <button class="btn-create-match" style="padding:0.8rem 2rem; font-size:1.1rem;" onclick="advanceHostGame()">
-            <i class="fa-solid fa-play"></i> Start Game
-          </button>
-          <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="resetHostGame()">
-            Reset Room
-          </button>
+        <div class="actions" style="justify-content:flex-end; gap:1rem; margin-top:1.5rem; display:flex; align-items:center;">
+          ${hostState.isController ? `
+            <button class="btn-create-match" style="padding:0.8rem 2rem; font-size:1.1rem;" onclick="advanceHostGame()">
+              <i class="fa-solid fa-play"></i> Start Game
+            </button>
+            <button class="btn-back" style="border-color:#ef4444; color:#ef4444;" onclick="resetHostGame()">
+              Reset Room
+            </button>
+          ` : `
+            <span class="status-badge" style="background:#f59e0b;">
+              <i class="fa-solid fa-eye"></i> Spectator Mode — another session is controlling this match
+            </span>
+          `}
         </div>
       </div>
     </div>
@@ -881,9 +1182,13 @@ function renderHostPrecountdown(stage) {
       <h1>Question ${escapeHtml(hostState.snapshot.game.currentRound)}</h1>
       <div id="precountdownNumber" class="host-lobby-pin" style="font-size:8rem; margin:1rem 0;">3</div>
       <p class="subtle" style="font-size:1.2rem;">${players.length} players in the arena</p>
-      <div class="actions" style="justify-content:center; margin-top:1.5rem; display:flex; gap:1rem;">
-        <button class="btn-create-match" onclick="advanceHostGame()">Start Now</button>
-        <button class="btn-back" onclick="revealHostRound('host')">Skip / Reveal</button>
+      <div class="actions" style="justify-content:center; margin-top:1.5rem; display:flex; gap:1rem; align-items:center;">
+        ${hostState.isController ? `
+          <button class="btn-create-match" onclick="advanceHostGame()">Start Now</button>
+          <button class="btn-back" onclick="revealHostRound('host')">Skip / Reveal</button>
+        ` : `
+          <span class="status-badge" style="background:#f59e0b;"><i class="fa-solid fa-eye"></i> Spectator Mode</span>
+        `}
       </div>
     </section>
   `;
@@ -946,7 +1251,11 @@ function renderHostQuestion(stage, revealed) {
           </div>
         ` : `
           <p style="font-size:1.2rem; font-weight:800; opacity:0.85;">${Number(stats.total || 0)} / ${active} answered</p>
-          <button class="btn-back" style="color:#ef4444; border-color:#ef4444; margin-top:0.5rem;" onclick="revealHostRound('host')">Skip / Reveal</button>
+          ${hostState.isController ? `
+            <button class="btn-back" style="color:#ef4444; border-color:#ef4444; margin-top:0.5rem;" onclick="revealHostRound('host')">Skip / Reveal</button>
+          ` : `
+            <span class="status-badge" style="background:#f59e0b; margin-top:0.5rem; display:inline-block;"><i class="fa-solid fa-eye"></i> Spectator Mode</span>
+          `}
         `}
       </div>
     </div>
@@ -955,6 +1264,17 @@ function renderHostQuestion(stage, revealed) {
 
 function renderHostLeaderboard(stage) {
   const rows = hostState.snapshot.leaderboard || [];
+
+  // Warm the podium track's cache now, since LEADERBOARD usually precedes FINISHED,
+  // so playback can start with minimal buffering delay once the match ends.
+  try {
+    if (!hostState.podiumPreload) {
+      hostState.podiumPreload = new Audio();
+      hostState.podiumPreload.preload = 'auto';
+      hostState.podiumPreload.src = 'Music/Kahoot Podium animation.mp3';
+      hostState.podiumPreload.load();
+    }
+  } catch (err) {}
   
   // 1. Capture current positions for the FLIP animation
   const oldPositions = {};
@@ -995,7 +1315,11 @@ function renderHostLeaderboard(stage) {
         
       </div>
       <div class="actions" style="justify-content:center; margin-top:2rem;">
-        <button class="btn-create-match" onclick="advanceHostGame()">Next Question</button>
+        ${hostState.isController ? `
+          <button class="btn-create-match" onclick="advanceHostGame()">Next Question</button>
+        ` : `
+          <span class="status-badge" style="background:#f59e0b;"><i class="fa-solid fa-eye"></i> Spectator Mode</span>
+        `}
       </div>
     </section>
   `;
@@ -1106,68 +1430,95 @@ function renderHostFinished(stage) {
 
         <!-- RESET / EXIT ACTION -->
         <div class="actions" style="justify-content: center; margin-top: 2.5rem; position: relative; z-index: 101;">
-          <button class="btn-back" style="border-color: #ef4444; color: #ef4444;" onclick="resetHostGame()">
-            <i class="fa-solid fa-rotate-left"></i> Reset Match
-          </button>
+          ${hostState.isController ? `
+            <button class="btn-back" style="border-color: #ef4444; color: #ef4444;" onclick="resetHostGame()">
+              <i class="fa-solid fa-rotate-left"></i> Reset Match
+            </button>
+          ` : `
+            <span class="status-badge" style="background:#f59e0b;"><i class="fa-solid fa-eye"></i> Spectator Mode</span>
+          `}
         </div>
       </div>
     `;
 
-    // --- SEQUENTIAL PODIUM REVEAL & SPOTLIGHT TIMINGS ---
-
-    // 1. Reveal 3rd Place at 6.0 seconds
-    setTimeout(() => {
-      const col3 = document.getElementById('podium-col-3rd');
-      if (col3) col3.classList.add('revealed');
-    }, 6000);
-
-    // 2. Reveal 2nd Place at 10.0 seconds
-    setTimeout(() => {
-      const col2 = document.getElementById('podium-col-2nd');
-      if (col2) col2.classList.add('revealed');
-    }, 10000);
-
-    // 3. Dim lights and start searching spotlight at 10.5 seconds
-    setTimeout(() => {
-      const spotlight = document.getElementById('spotlight-overlay');
-      if (spotlight) spotlight.classList.add('active', 'searching');
-    }, 10500);
-
-    // 4. Reveal 1st Place, Snap Spotlight, and Confetti at 14.5 seconds
-    setTimeout(() => {
-      const col1 = document.getElementById('podium-col-1st');
-      const runnerBar = document.getElementById('runner-ups-bar');
-      const spotlight = document.getElementById('spotlight-overlay');
-
-      if (col1) col1.classList.add('revealed');
-      if (runnerBar) runnerBar.classList.add('revealed');
-      
-      if (spotlight) {
-        spotlight.classList.remove('searching');
-        spotlight.classList.add('highlight-winner');
-      }
-
-      if (!hostState.confettiFired && window.confetti) {
-        hostState.confettiFired = true;
-        confetti({ particleCount: 160, spread: 85, origin: { y: 0.6 }, zIndex: 1000 });
-        setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.2, y: 0.6 }, zIndex: 1000 }), 400);
-        setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.8, y: 0.6 }, zIndex: 1000 }), 800);
-      }
-
-      setTimeout(() => {
-        if (spotlight) spotlight.classList.remove('active');
-      }, 2000);
-
-    }, 14500);
+    // Align the podium reveal sequence to when the finale music actually becomes
+    // audible, rather than to the moment this render happened. Without this, the
+    // browser's audio buffering delay makes the winner reveal fire before the
+    // fanfare in the track catches up (heard as the sound trailing the visual).
+    const podiumAudio = hostState.audio ? hostState.audio.currentAudio : null;
+    if (podiumAudio && !hostState.muted) {
+      podiumAudio.addEventListener('playing', scheduleFinishedReveal, { once: true });
+      // Safety net in case 'playing' never fires (e.g. autoplay blocked).
+      setTimeout(scheduleFinishedReveal, 1500);
+    } else {
+      scheduleFinishedReveal();
+    }
   }
 }
 
+function scheduleFinishedReveal() {
+  if (hostState.finishedRevealScheduled) return;
+  hostState.finishedRevealScheduled = true;
+
+  // 1. Reveal 3rd Place at 5.0s
+  setTimeout(() => {
+    const col3 = document.getElementById('podium-col-3rd');
+    if (col3) col3.classList.add('revealed');
+  }, 5000);
+
+  // 2. Reveal 2nd Place at 8.5s
+  setTimeout(() => {
+    const col2 = document.getElementById('podium-col-2nd');
+    if (col2) col2.classList.add('revealed');
+  }, 8500);
+
+  // 3. Dim lights and start searching spotlight shortly after, leading into the climax
+  setTimeout(() => {
+    const spotlight = document.getElementById('spotlight-overlay');
+    if (spotlight) spotlight.classList.add('active', 'searching');
+  }, 8800);
+
+  // 4. Reveal 1st Place, Snap Spotlight, and Confetti at 14.5 seconds
+  setTimeout(() => {
+    const col1 = document.getElementById('podium-col-1st');
+    const runnerBar = document.getElementById('runner-ups-bar');
+    const spotlight = document.getElementById('spotlight-overlay');
+
+    if (col1) col1.classList.add('revealed');
+    if (runnerBar) runnerBar.classList.add('revealed');
+
+      if (spotlight) {
+        spotlight.classList.remove('searching');
+        // Force the browser to commit the searching animation's end state
+        // before switching to the transition-driven highlight-winner state;
+        // changing both classes in the same tick can make the size jump
+        // straight to 450px instead of easing into it.
+        void spotlight.offsetWidth;
+        requestAnimationFrame(() => {
+          spotlight.classList.add('highlight-winner');
+        });
+      }
+
+    if (!hostState.confettiFired && window.confetti) {
+      hostState.confettiFired = true;
+      confetti({ particleCount: 160, spread: 85, origin: { y: 0.6 }, zIndex: 1000 });
+      setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.2, y: 0.6 }, zIndex: 1000 }), 400);
+      setTimeout(() => confetti({ particleCount: 100, spread: 100, origin: { x: 0.8, y: 0.6 }, zIndex: 1000 }), 800);
+    }
+
+    setTimeout(() => {
+      if (spotlight) spotlight.classList.remove('active');
+    }, 2000);
+  }, 14500);
+}
+
 async function advanceHostGame() {
-  if (isTransitioning) return;
+  if (!hostState.isController || isTransitioning) return;
   isTransitioning = true;
   try {
     clearTimeout(hostState.autoAdvanceTimer);
     hostState.finishedRendered = false;
+    hostState.finishedRevealScheduled = false;
     const snap = await hostRpc('qa_advance_game', {
       p_game_pin: hostState.gamePin,
       p_host_token: hostState.hostToken
@@ -1181,10 +1532,11 @@ async function advanceHostGame() {
 }
 
 async function revealHostRound(reason) {
-  if (isTransitioning) return;
+  if (!hostState.isController || isTransitioning) return;
   isTransitioning = true;
   try {
     hostState.finishedRendered = false;
+    hostState.finishedRevealScheduled = false;
     const snap = await hostRpc('qa_reveal_round', {
       p_game_pin: hostState.gamePin,
       p_host_token: hostState.hostToken,
@@ -1199,13 +1551,14 @@ async function revealHostRound(reason) {
 }
 
 async function resetHostGame() {
-  if (isTransitioning) return;
+  if (!hostState.isController || isTransitioning) return;
   if (!confirm('Reset the room and remove players/scores?')) return;
-  
+
   isTransitioning = true;
   clearTimeout(hostState.autoAdvanceTimer);
   hostState.confettiFired = false;
   hostState.finishedRendered = false;
+  hostState.finishedRevealScheduled = false;
   hostState.revealRequestedFor = '';
   
   try {

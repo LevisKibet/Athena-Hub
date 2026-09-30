@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js"></script>
 </head>
 <body>
   <div class="backdrop-overlay"></div>
@@ -115,6 +116,12 @@
             <button class="btn-add-q" id="btn-add-q" onclick="addQuestionToMatch()">
               <i class="fa-solid fa-plus"></i> Add Question
             </button>
+            <button class="btn-add-q" id="btn-import-q" onclick="openImportModal()">
+              <i class="fa-solid fa-file-import"></i> Import from File
+            </button>
+            <button class="btn-add-q" id="btn-generate-q" onclick="openGenerateModal()">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate with AI
+            </button>
             <button class="btn-theme-edit" id="btn-save-q" onclick="saveActiveQuestion()">
               <i class="fa-solid fa-floppy-disk"></i> Save Question
             </button>
@@ -194,6 +201,60 @@
       <div id="hostError" class="info-modal" style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;"></div>
       <section id="hostStage"></section>
     </main>
+
+    <!-- IMPORT FROM FILE MODAL -->
+    <div class="ai-modal-overlay" id="import-modal-overlay">
+      <div class="ai-modal-card">
+        <h3><i class="fa-solid fa-file-import"></i> Import Questions</h3>
+        <p class="subtle">Upload a PDF or Word (.docx) document. Gemini will pull out, or rewrite into, multiple-choice questions.</p>
+        <div class="ai-modal-field">
+          <label>File (PDF or .docx)</label>
+          <input type="file" id="import-file-input" class="ai-modal-input" accept=".pdf,.docx" />
+        </div>
+        <div class="ai-modal-field">
+          <label>Max questions (optional)</label>
+          <input type="number" id="import-max-questions" class="ai-modal-input" min="1" max="30" placeholder="Leave blank for all found" />
+        </div>
+        <div class="ai-modal-status" id="import-modal-status"></div>
+        <div class="ai-modal-actions">
+          <button class="btn-back" onclick="closeImportModal()">Cancel</button>
+          <button class="btn-create-match" id="import-modal-submit" onclick="submitImportQuestions()">
+            <i class="fa-solid fa-upload"></i> Import
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GENERATE WITH AI MODAL -->
+    <div class="ai-modal-overlay" id="generate-modal-overlay">
+      <div class="ai-modal-card">
+        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Generate with AI</h3>
+        <p class="subtle">Describe a topic and Gemini will draft a set of multiple-choice questions for you to review and edit.</p>
+        <div class="ai-modal-field">
+          <label>Topic</label>
+          <input type="text" id="generate-topic" class="ai-modal-input" placeholder="e.g. 90s Kenyan music" />
+        </div>
+        <div class="ai-modal-field">
+          <label>Number of questions</label>
+          <input type="number" id="generate-count" class="ai-modal-input" min="1" max="30" value="5" />
+        </div>
+        <div class="ai-modal-field">
+          <label>Difficulty</label>
+          <select id="generate-difficulty" class="ai-modal-select">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="ai-modal-status" id="generate-modal-status"></div>
+        <div class="ai-modal-actions">
+          <button class="btn-back" onclick="closeGenerateModal()">Cancel</button>
+          <button class="btn-create-match" id="generate-modal-submit" onclick="submitGenerateQuestions()">
+            <i class="fa-solid fa-sparkles"></i> Generate
+          </button>
+        </div>
+      </div>
+    </div>
 
     <footer class="bottom-bar">
       <div class="glow-orb-wrapper">
