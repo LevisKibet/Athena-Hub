@@ -6,7 +6,7 @@
   <title>Kahoot Arena | Athena Game Hub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=3" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -34,6 +34,17 @@
         </div>
       </nav>
       <div class="nav-right">
+        <div id="auth-signed-out" style="display:flex;">
+          <button class="btn-back" onclick="openSignInModal()">
+            <i class="fa-solid fa-right-to-bracket"></i> Sign In
+          </button>
+        </div>
+        <div id="auth-signed-in" style="display:none; align-items:center; gap:0.6rem;">
+          <span id="auth-user-email" class="control-pill" style="padding:0.4rem 0.9rem;"></span>
+          <button class="btn-back" onclick="signOutUser()">
+            <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+          </button>
+        </div>
         <button id="muteBtn" class="btn-back" style="padding:0.4rem 0.8rem;">
           <i class="fa-solid fa-volume-high"></i> Audio
         </button>
@@ -77,7 +88,7 @@
           </div>
           <div id="modal-settings" class="info-modal">
             <h3><i class="fa-solid fa-sliders"></i> Match Settings</h3>
-            <p>Your browser's soft authentication key: <strong id="user-key-display">...</strong></p>
+            <p id="settings-account-info">Not signed in.</p>
           </div>
           <div class="dashboard-header">
             <div>
@@ -202,6 +213,25 @@
       <section id="hostStage"></section>
     </main>
 
+    <!-- SIGN IN MODAL -->
+    <div class="ai-modal-overlay" id="signin-modal-overlay">
+      <div class="ai-modal-card">
+        <h3><i class="fa-solid fa-right-to-bracket"></i> Sign In</h3>
+        <p class="subtle">Enter your email and we'll send you a magic sign-in link — no password needed. Signing in with this email from any device gives you back your matches.</p>
+        <div class="ai-modal-field">
+          <label>Email</label>
+          <input type="email" id="signin-email" class="ai-modal-input" placeholder="you@example.com" />
+        </div>
+        <div class="ai-modal-status" id="signin-modal-status"></div>
+        <div class="ai-modal-actions">
+          <button class="btn-back" onclick="closeSignInModal()">Cancel</button>
+          <button class="btn-create-match" id="signin-modal-submit" onclick="submitSignIn()">
+            <i class="fa-solid fa-paper-plane"></i> Send Link
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- IMPORT FROM FILE MODAL -->
     <div class="ai-modal-overlay" id="import-modal-overlay">
       <div class="ai-modal-card">
@@ -272,6 +302,6 @@
   </div>
 
   <script src="audio.js"></script>
-  <script src="App.js"></script>
+  <script src="App.js?v=3"></script>
 </body>
 </html>

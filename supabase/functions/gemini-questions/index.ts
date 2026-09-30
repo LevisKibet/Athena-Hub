@@ -32,6 +32,7 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const QUESTION_SCHEMA = {
@@ -67,17 +68,31 @@ Deno.serve(async (req) => {
       throw new Error('Supabase service credentials are not configured.');
     }
 
-    const body = await req.json();
-    const { action, game_id, host_token } = body;
+    // Identify the caller from their real Supabase Auth session, sent
+    // automatically as a Bearer token by supabaseClient.functions.invoke()
+    // once they're signed in — never trust a client-supplied user id here.
+    const authHeader = req.headers.get('Authorization') || '';
+    const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!jwt) return jsonResponse({ error: 'You must be signed in to do this.' }, 401);
 
-    if (!game_id || !host_token) {
-      return jsonResponse({ error: 'game_id and host_token are required.' }, 400);
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(jwt);
+    if (userErr || !userData || !userData.user) {
+      return jsonResponse({ error: 'You must be signed in to do this.' }, 401);
+    }
+    const callerId = userData.user.id;
+
+    const body = await req.json();
+    const { action, game_id } = body;
+
+    if (!game_id) {
+      return jsonResponse({ error: 'game_id is required.' }, 400);
     }
 
     // Verify the caller actually owns this match before spending API quota
     // on their behalf. Uses the service role key, so this check can't be
     // bypassed by RLS being off/on client-side.
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: game, error: gameErr } = await supabaseAdmin
       .from('games')
       .select('host_token')
@@ -85,7 +100,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (gameErr || !game) return jsonResponse({ error: 'Match not found.' }, 404);
-    if (game.host_token !== host_token) return jsonResponse({ error: 'You do not own this match.' }, 403);
+    if (game.host_token !== callerId) return jsonResponse({ error: 'You do not own this match.' }, 403);
 
     let questions;
     if (action === 'extract') {

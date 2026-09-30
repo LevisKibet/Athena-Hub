@@ -4,33 +4,12 @@
 const SUPABASE_URL = 'https://wauinjxrmknqtbohfkrd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdWluanhybWtucXRib2hma3JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjc3MjIsImV4cCI6MjA5OTYwMzcyMn0.oJLojkkqZbpYXEEJ1WGhpH2ICWLaJVjYyupCUgbpG3s';
 
-function getOrCreateUserKey() {
-  try {
-    let key = localStorage.getItem('athena_user_key');
-    if (key) return key;
-    const bytes = new Uint8Array(12);
-    if (window.crypto && crypto.getRandomValues) {
-      crypto.getRandomValues(bytes);
-    } else {
-      for (let i = 0; i < bytes.length; i++) {
-        bytes[i] = Math.floor(Math.random() * 256);
-      }
-    }
-    key = Array.from(bytes)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    try {
-      localStorage.setItem('athena_user_key', key);
-    } catch (storageErr) {
-      console.warn('Athena Hub: localStorage unavailable.');
-    }
-    return key;
-  } catch (err) {
-    return 'temp_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-}
-
-const USER_KEY = getOrCreateUserKey();
+// NOTE: Ownership used to be a random key stashed in localStorage (soft
+// auth). That breaks the moment you switch browsers/devices or clear site
+// data, which is why editing your own matches could randomly stop working.
+// Ownership is now tied to a real Supabase Auth account (magic-link email
+// sign-in) instead — see initAuth()/currentUser below.
+let currentUser = null;
 
 function getOrCreateHostSessionId() {
   try {
@@ -62,13 +41,7 @@ const HOST_LOCK_STALE_MS = 12000; // ms of silence before a host lock is conside
 let supabaseClient = null;
 try {
   if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE')) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          'x-user-key': USER_KEY
-        }
-      }
-    });
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } else {
     console.warn('Athena Hub: Supabase credentials are using placeholder values.');
   }
@@ -109,6 +82,94 @@ const hostState = {
 
 const INDEX_TO_CHOICE = ['A', 'B', 'C', 'D'];
 const CHOICE_TO_INDEX = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
+
+// ===================================================
+// 1b. AUTHENTICATION (Supabase Auth — magic link email)
+// ===================================================
+async function initAuth() {
+  if (!supabaseClient) return;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  currentUser = session ? session.user : null;
+  updateAuthUI();
+  if (document.getElementById('matches-container')) {
+    fetchMatchesFromDb();
+  }
+
+  supabaseClient.auth.onAuthStateChange((_event, newSession) => {
+    currentUser = newSession ? newSession.user : null;
+    updateAuthUI();
+
+    const kahootView = document.getElementById('kahoot-view');
+    if (kahootView && kahootView.style.display !== 'none') {
+      fetchMatchesFromDb();
+    }
+  });
+}
+
+function updateAuthUI() {
+  const signedOutEl = document.getElementById('auth-signed-out');
+  const signedInEl = document.getElementById('auth-signed-in');
+  const emailEl = document.getElementById('auth-user-email');
+  const settingsInfo = document.getElementById('settings-account-info');
+
+  if (currentUser) {
+    if (signedOutEl) signedOutEl.style.display = 'none';
+    if (signedInEl) signedInEl.style.display = 'flex';
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+    if (settingsInfo) settingsInfo.textContent = `Signed in as ${currentUser.email || currentUser.id}`;
+  } else {
+    if (signedOutEl) signedOutEl.style.display = 'flex';
+    if (signedInEl) signedInEl.style.display = 'none';
+    if (settingsInfo) settingsInfo.textContent = "Not signed in \u2014 sign in to create and edit matches.";
+  }
+}
+
+window.openSignInModal = function() {
+  const overlay = document.getElementById('signin-modal-overlay');
+  const status = document.getElementById('signin-modal-status');
+  if (status) { status.textContent = ''; status.className = 'ai-modal-status'; }
+  if (overlay) overlay.classList.add('open');
+};
+
+window.closeSignInModal = function() {
+  const overlay = document.getElementById('signin-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+};
+
+window.submitSignIn = async function() {
+  const emailInput = document.getElementById('signin-email');
+  const status = document.getElementById('signin-modal-status');
+  const submitBtn = document.getElementById('signin-modal-submit');
+  const setStatus = (msg, cls) => { if (status) { status.textContent = msg; status.className = 'ai-modal-status ' + (cls || ''); } };
+
+  const email = emailInput ? emailInput.value.trim() : '';
+  if (!email) {
+    setStatus('Enter your email first.', 'error');
+    return;
+  }
+
+  setStatus('Sending magic link...', 'loading');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+    });
+    if (error) throw error;
+    setStatus('Check your email for a sign-in link!', '');
+  } catch (err) {
+    setStatus(err.message || 'Could not send sign-in link.', 'error');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+
+window.signOutUser = async function() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+};
 
 // ===================================================
 // 2. VIEW NAVIGATION & UI CONTROLS
@@ -235,7 +296,7 @@ async function fetchMatchesFromDb() {
     container.innerHTML = '';
 
     games.forEach(game => {
-      const isCreator = game.host_token === USER_KEY;
+      const isCreator = !!(currentUser && game.host_token === currentUser.id);
       const gameConfig = configMap[game.id] || {};
       const title = gameConfig.title || `Match PIN: ${game.game_pin}`;
       const teamTag = gameConfig.team_tag || 'TECH TEAM';
@@ -287,6 +348,11 @@ window.createNewMatchInDb = async function() {
     return;
   }
 
+  if (!currentUser) {
+    window.openSignInModal();
+    return;
+  }
+
   const pin = generateGamePin();
 
   try {
@@ -294,7 +360,7 @@ window.createNewMatchInDb = async function() {
       .from('games')
       .insert([{
         game_pin: pin,
-        host_token: USER_KEY,
+        host_token: currentUser.id,
         status: 'LOBBY',
         default_timer: 20,
         question_timer_limit: 20
@@ -363,7 +429,7 @@ window.openMatchEditor = async function(gameId) {
     currentMatch = game;
     currentQuestions = questions || [];
     activeQuestionIndex = 0;
-    isOwner = (game.host_token === USER_KEY);
+    isOwner = !!(currentUser && game.host_token === currentUser.id);
 
     const btnAdd = document.getElementById('btn-add-q');
     const btnSave = document.getElementById('btn-save-q');
@@ -729,7 +795,6 @@ window.submitImportQuestions = async function() {
     const payload = {
       action: 'extract',
       game_id: currentMatch.id,
-      host_token: USER_KEY,
       max_questions: maxQInput && maxQInput.value ? Number(maxQInput.value) : null
     };
 
@@ -784,7 +849,6 @@ window.submitGenerateQuestions = async function() {
       body: {
         action: 'generate',
         game_id: currentMatch.id,
-        host_token: USER_KEY,
         topic,
         count: countInput ? Number(countInput.value) : 5,
         difficulty: difficultySelect ? difficultySelect.value : 'medium'
@@ -1648,10 +1712,7 @@ function applyTheme(isLight) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const userKeyDisplay = document.getElementById('user-key-display');
-  if (userKeyDisplay) {
-    userKeyDisplay.textContent = USER_KEY.substring(0, 16) + '...';
-  }
+  initAuth();
 
   document.addEventListener('click', () => {
     if (hostState.audio && !hostState.audio.unlocked) {
@@ -1681,9 +1742,5 @@ document.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
     const options = { weekday: 'short', month: 'short', day: 'numeric' };
     dateElement.textContent = now.toLocaleDateString('en-US', options);
-  }
-
-  if (document.getElementById('kahoot-view')) {
-    fetchMatchesFromDb();
   }
 });
