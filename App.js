@@ -357,7 +357,11 @@ async function fetchMatchesFromDb() {
           </div>
           <div class="match-title-row">
             <div class="match-title">${escapeHtml(title)}</div>
-            <i class="fa-solid fa-ellipsis-vertical" style="color: var(--text-muted);"></i>
+            ${isCreator ? `
+              <i class="fa-solid fa-trash" style="color: #ef4444; cursor: pointer;" title="Delete match" onclick="deleteMatch('${game.id}', event)"></i>
+            ` : `
+              <i class="fa-solid fa-ellipsis-vertical" style="color: var(--text-muted);"></i>
+            `}
           </div>
           <div class="match-stats">
             <div class="stat-box">
@@ -388,6 +392,35 @@ async function fetchMatchesFromDb() {
     container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ff5e36;">Failed to load matches from database.</p>`;
   }
 }
+
+window.deleteMatch = async function(gameId, evt) {
+  if (evt) evt.stopPropagation();
+  if (!supabaseClient || !currentUser) return;
+
+  if (!confirm('Delete this match permanently? This removes all its questions and cannot be undone.')) return;
+
+  try {
+    // Clear out dependent rows first (no cascading FKs to rely on).
+    await supabaseClient.from('game_events').delete().eq('game_id', gameId);
+    await supabaseClient.from('players').delete().eq('game_id', gameId);
+    await supabaseClient.from('questions').delete().eq('game_id', gameId);
+    await supabaseClient.from('config').delete().eq('game_id', gameId);
+
+    // Scoped to host_token as a defense-in-depth check even though the
+    // button is only ever rendered for matches the current user owns.
+    const { error } = await supabaseClient
+      .from('games')
+      .delete()
+      .eq('id', gameId)
+      .eq('host_token', currentUser.id);
+
+    if (error) throw error;
+
+    fetchMatchesFromDb();
+  } catch (err) {
+    alert('Error deleting match: ' + err.message);
+  }
+};
 
 window.createNewMatchInDb = async function() {
   if (!supabaseClient) {
@@ -547,6 +580,12 @@ window.loadQuestionIntoCanvas = function(index) {
   if (promptInput) {
     promptInput.value = q.question;
     promptInput.disabled = !isOwner;
+  }
+
+  const mediaCanvas = document.getElementById('editor-media-canvas');
+  if (mediaCanvas) {
+    const imgUrl = q.image_url || 'Images/kahoot.jpg';
+    mediaCanvas.style.backgroundImage = 'linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.4)), url(' + JSON.stringify(imgUrl) + ')';
   }
 
   const optionsText = [q.option_a, q.option_b, q.option_c, q.option_d];
@@ -778,17 +817,17 @@ async function insertGeneratedQuestions(questions) {
 
   const startOrder = currentQuestions.length + 1;
   const rows = questions.map((q, idx) => ({
-    game_id: currentMatch.id,
-    sort_order: startOrder + idx,
-    round: String(startOrder + idx),
-    question: q.question,
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-    correct: q.correct,
-    image_url: 'Images/kahoot.jpg',
-    time_limit: 20
+  game_id: currentMatch.id,
+  sort_order: startOrder + idx,
+  round: String(startOrder + idx),
+  question: q.question,
+  option_a: q.option_a,
+  option_b: q.option_b,
+  option_c: q.option_c,
+  option_d: q.option_d,
+  correct: q.correct,
+  image_url: q.image_url || 'Images/kahoot.jpg',
+  time_limit: 20
   }));
 
   const { data, error } = await supabaseClient

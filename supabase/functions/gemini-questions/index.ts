@@ -49,8 +49,12 @@ const QUESTION_SCHEMA = {
           option_c: { type: 'STRING' },
           option_d: { type: 'STRING' },
           correct: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+          image_query: {
+            type: 'STRING',
+            description: 'A short 2-4 word search phrase for a real photo that visually represents this question, e.g. "Eiffel Tower Paris" or "golden retriever dog".',
+          },
         },
-        required: ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct'],
+        required: ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct', 'image_query'],
       },
     },
   },
@@ -110,6 +114,16 @@ Deno.serve(async (req) => {
     } else {
       return jsonResponse({ error: 'Unknown action. Use "extract" or "generate".' }, 400);
     }
+
+    // Give each question a real, verified photo instead of trusting a URL
+    // Gemini might invent. Gemini only supplies a short search phrase
+    // (image_query); we look that up against Wikipedia's free, keyless API
+    // and only use the result if an actual thumbnail comes back.
+    questions = await Promise.all(questions.map(async (q: any) => {
+      const { image_query, ...rest } = q;
+      const imageUrl = await fetchImageForQuery(image_query || q.question);
+      return { ...rest, image_url: imageUrl || '' };
+    }));
 
     return jsonResponse({ questions });
   } catch (err) {
@@ -202,7 +216,31 @@ async function callGemini(parts: any[]) {
     correct: ['A', 'B', 'C', 'D'].includes(String(q.correct || '').toUpperCase())
       ? String(q.correct).toUpperCase()
       : 'A',
+    image_query: String(q.image_query || '').slice(0, 100),
   }));
+}
+
+// Looks up a real image via Wikipedia's public search API (no key required,
+// CORS-open). Returns null if nothing suitable is found, so callers can fall
+// back to a default image rather than ever serving a broken/hallucinated URL.
+async function fetchImageForQuery(query: string): Promise<string | null> {
+  const q = String(query || '').trim();
+  if (!q) return null;
+
+  try {
+    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=500&origin=*`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const pages = data && data.query && data.query.pages;
+    if (!pages) return null;
+
+    const first = Object.values(pages)[0] as any;
+    return (first && first.thumbnail && first.thumbnail.source) || null;
+  } catch {
+    return null;
+  }
 }
 
 function jsonResponse(obj: unknown, status = 200) {
