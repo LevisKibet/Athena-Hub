@@ -7,71 +7,65 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="k50.css" />
 </head>
 <body>
-
   <div class="backdrop-overlay"></div>
-
   <div class="hub-container">
     <header class="top-nav">
-      <div class="nav-left">
-        <span id="live-date">Wed, Aug 19</span>
-      </div>
-
+      <div class="nav-left"><span id="live-date"></span></div>
       <nav class="nav-center">
         <a href="index.html" class="nav-link">Games Hub</a>
         <a href="kenya-50.html" class="nav-link active">Kenya @ 50</a>
-        <div class="hub-badge">
-          <i class="fa-solid fa-house"></i> Athena
-        </div>
+        <div class="hub-badge"><i class="fa-solid fa-house"></i> Athena</div>
       </nav>
-
       <div class="nav-right">
-        <a href="index.html" class="btn-back">
-          <i class="fa-solid fa-arrow-left"></i> Back to Hub
-        </a>
-
-        <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Light/Dark Mode">
-          <i id="theme-icon" class="fa-solid fa-moon"></i>
-        </button>
+        <span id="k50-user-label" class="k50-muted"></span>
+        <button id="k50-signin-btn" class="btn-back" type="button"><i class="fa-solid fa-right-to-bracket"></i> Sign in</button>
+        <button id="k50-signout-btn" class="btn-back k50-hide" type="button"><i class="fa-solid fa-right-from-bracket"></i> Sign out</button>
+        <button id="k50-rules-btn" class="theme-toggle-btn" type="button" title="How to play"><i class="fa-solid fa-book"></i></button>
+        <button id="k50-audio-btn" class="btn-back" type="button"><i class="fa-solid fa-volume-high"></i> Audio</button>
+        <a href="index.html" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Hub</a>
+        <button id="theme-toggle" class="theme-toggle-btn" type="button" title="Toggle Light/Dark Mode"><i id="theme-icon" class="fa-solid fa-moon"></i></button>
       </div>
     </header>
 
-    <main>
-      <div class="title-section" style="margin-bottom: 2rem;">
-        <div class="add-icon-btn">
-          <i class="fa-solid fa-flag"></i>
-        </div>
-        <h1>Kenya @ 50</h1>
-      </div>
-
-      <div class="info-modal" style="display: block; text-align: center; padding: 4rem 2rem;">
-        <h2 style="font-size: 2rem; margin-bottom: 1rem;">Kenya @ 50 Arena</h2>
-        <p style="font-size: 1.1rem; max-width: 600px; margin: 0 auto 2rem auto;">
-          Explore 50 years of rich history, culture, and heritage through interactive milestone challenges.
-        </p>
-        <button class="btn-create-match" style="margin: 0 auto; width: fit-content; padding: 1rem 2rem;">
-          <i class="fa-solid fa-play"></i> Start Experience
-        </button>
-      </div>
-    </main>
-
-    <footer class="bottom-bar">
-      <div class="glow-orb-wrapper">
-        <div class="glow-orb"></div>
-      </div>
-
-      <div class="hub-status">
-        <span>Kenya @ 50 Active</span>
-        <div class="avatar-group">
-          <div class="avatar" style="background-color: #006a4e;">K</div>
-          <div class="avatar" style="background-color: #bb0000;">5</div>
-          <div class="avatar" style="background-color: #000000;">0</div>
-        </div>
-      </div>
-    </footer>
+    <main id="k50-app"><div class="k50-panel k50-center">Loading…</div></main>
   </div>
 
-  <script src="/App.js"></script>
+  <div id="k50-toasts"></div>
+
+  <div class="k50-overlay" id="k50-signin">
+    <div class="k50-modal">
+      <h2>Sign in to host</h2>
+      <p class="k50-muted">Enter your email and we'll send a magic link. Players don't need to sign in.</p>
+      <input id="k50-signin-email" type="email" class="k50-input" placeholder="you@example.com" autocomplete="email">
+      <div class="k50-row" style="margin-top:.8rem"><button class="k50-btn" id="k50-signin-send">Send magic link</button><button class="k50-btn ghost" data-close>Close</button></div>
+      <div id="k50-signin-status" class="k50-status"></div>
+    </div>
+  </div>
+
+  <div class="k50-overlay" id="k50-rules">
+    <div class="k50-modal">
+      <h2>How to play Kenya @ 50</h2>
+      <ol>
+        <li>The host creates a game and teams. Everyone else joins from their phone with the room code or QR code and a nickname, then picks a team and marker.</li>
+        <li>Teams take turns. On your turn, roll the die and move that many tiles clockwise from START.</li>
+        <li>Land on a <b>black</b> tile and you play a <b>red</b> card. Land on a <b>red</b> tile and you play a <b>black</b> card.</li>
+        <li>The describer (players rotate within the team) is the only one who sees the 11 words. They have 50 seconds to describe as many as they can without saying them. They may swap the card up to 2 times.</li>
+        <li>When time is up the card is revealed to everyone. The describer marks the guessed words and every other player must approve the count.</li>
+        <li>Each word is worth 10 points. First team to 500 points wins.</li>
+        <li><b>Judiciary</b> tiles draw a judiciary card, which can cost or win points, or give a saved get-out-of-jail-free card.</li>
+        <li><b>Special tiles</b> only apply their effect: Mara (back 3), Rhino (forward 4), Mombasa (skip a turn), SGR (+10), Give 10 / Steal 10 from any team. Every pass of START pays 50 points.</li>
+      </ol>
+      <button class="k50-btn" data-close>Got it</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script src="k50.js"></script>
 </body>
 </html>
