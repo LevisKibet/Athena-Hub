@@ -100,12 +100,16 @@ body.k50-body { align-items: flex-start; }
   grid-template-rows: auto auto 1fr;
 }
 #k50-boardcol { grid-area: board; min-width: 0; }
-#k50-action { grid-area: action; min-width: 0; }
+#k50-action { grid-area: action; min-width: 0; max-height: calc(100vh - 6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+#k50-boardcol { position: sticky; top: .8rem; }
+.k50-layout.lobby { grid-template-columns: minmax(0, 2.6fr) minmax(320px, 1fr); }
 #k50-score { grid-area: score; min-width: 0; }
 #k50-log { grid-area: log; min-width: 0; }
 
 @media (max-width: 980px) {
-  .k50-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "action" "board" "score" "log"; grid-template-rows: auto; }
+  .k50-layout, .k50-layout.lobby { grid-template-columns: minmax(0, 1fr); grid-template-areas: "action" "board" "score" "log"; grid-template-rows: auto; }
+  #k50-boardcol { position: static; }
+  #k50-action { max-height: 75vh; }
   .k50-home-grid { grid-template-columns: 1fr; }
   body.k50-body { padding: 1rem .7rem; }
 }
