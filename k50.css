@@ -99,17 +99,16 @@ body.k50-body { align-items: flex-start; }
   grid-template-areas: "board action" "score log";
   grid-template-rows: auto auto;
 }
-#k50-boardcol { grid-area: board; min-width: 0; align-self: center; }
-/* The action panel is exactly as tall as the board (contain: size takes it out of the
-   row-height calculation, so the board sets the row and the panel stretches to match). It scrolls inside. */
-#k50-action { grid-area: action; min-width: 0; align-self: stretch; contain: size; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+#k50-boardcol { grid-area: board; min-width: 0; align-self: start; }
+/* The action panel's height is set from the board's height in k50.js (buildShell), so they always match. It scrolls inside. */
+#k50-action { grid-area: action; min-width: 0; align-self: start; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .k50-layout.lobby { grid-template-columns: minmax(0, 2.15fr) minmax(340px, 1fr); }
 #k50-score { grid-area: score; min-width: 0; align-self: start; }
 #k50-log { grid-area: log; min-width: 0; align-self: start; }
 
 @media (max-width: 980px) {
   .k50-layout, .k50-layout.lobby { grid-template-columns: minmax(0, 1fr); grid-template-areas: "action" "board" "score" "log"; grid-template-rows: auto; align-items: start; }
-  #k50-action { contain: none; align-self: start; max-height: 75vh; }
+  #k50-action { height: auto !important; max-height: 75vh; }
   .k50-home-grid { grid-template-columns: 1fr; }
   body.k50-body { padding: 1rem .7rem; }
 }

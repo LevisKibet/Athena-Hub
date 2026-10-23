@@ -495,6 +495,12 @@
     a.addEventListener('input', onActionInput);
     $('#k50-score').addEventListener('click', onActionClick);
     $('#k50-log').addEventListener('click', onActionClick);
+    // keep the action panel exactly as tall as the board on desktop (it scrolls inside)
+    const bc = $('#k50-boardcol'), mq = window.matchMedia('(max-width: 980px)');
+    const sync = () => { a.style.height = mq.matches ? '' : bc.offsetHeight + 'px'; };
+    sync();
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(bc);
+    window.addEventListener('resize', sync);
   }
   function renderAll() {
     if (!S.snap || S.view !== 'game' || !$('#k50-action')) return;
@@ -564,7 +570,6 @@
     const canPick = !joined;
     let h = `<div class="k50-room">
         <div class="k50-muted">Room code</div><div class="code">${esc(g.roomCode)}</div>
-        <div class="k50-link">${esc(url)}</div>
         <div class="k50-row" style="justify-content:center;margin-top:.5rem"><button class="k50-btn small ghost" data-act="copy-link"><i class="fa-regular fa-copy"></i> Copy invite link</button></div>
         <img id="k50-qr" alt="QR code to join" ${ui.qrFor === url ? `src="${ui.qrUrl}"` : 'class="k50-hide"'}>
       </div><h3>Teams</h3><div class="k50-teamlist">`;
