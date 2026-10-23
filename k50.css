@@ -12,7 +12,7 @@
 }
 
 body.k50-body { align-items: flex-start; }
-.hub-container.k50-wide { max-width: 1480px; }
+.hub-container.k50-wide, .hub-container:has(#k50-app) { max-width: 1600px; }
 
 /* ---------- generic building blocks ---------- */
 .k50-panel {
@@ -94,22 +94,22 @@ body.k50-body { align-items: flex-start; }
 
 /* ---------- main layout ---------- */
 .k50-layout {
-  display: grid; gap: 1.1rem; align-items: start;
-  grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr);
-  grid-template-areas: "board action" "board score" "board log";
-  grid-template-rows: auto auto 1fr;
+  display: grid; gap: 1.1rem; align-items: center;
+  grid-template-columns: minmax(0, 2.15fr) minmax(340px, 1fr);
+  grid-template-areas: "board action" "score log";
+  grid-template-rows: auto auto;
 }
-#k50-boardcol { grid-area: board; min-width: 0; }
-#k50-action { grid-area: action; min-width: 0; max-height: calc(100vh - 6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-#k50-boardcol { position: sticky; top: .8rem; }
-.k50-layout.lobby { grid-template-columns: minmax(0, 2.6fr) minmax(320px, 1fr); }
-#k50-score { grid-area: score; min-width: 0; }
-#k50-log { grid-area: log; min-width: 0; }
+#k50-boardcol { grid-area: board; min-width: 0; align-self: center; }
+/* The action panel is exactly as tall as the board (contain: size takes it out of the
+   row-height calculation, so the board sets the row and the panel stretches to match). It scrolls inside. */
+#k50-action { grid-area: action; min-width: 0; align-self: stretch; contain: size; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.k50-layout.lobby { grid-template-columns: minmax(0, 2.15fr) minmax(340px, 1fr); }
+#k50-score { grid-area: score; min-width: 0; align-self: start; }
+#k50-log { grid-area: log; min-width: 0; align-self: start; }
 
 @media (max-width: 980px) {
-  .k50-layout, .k50-layout.lobby { grid-template-columns: minmax(0, 1fr); grid-template-areas: "action" "board" "score" "log"; grid-template-rows: auto; }
-  #k50-boardcol { position: static; }
-  #k50-action { max-height: 75vh; }
+  .k50-layout, .k50-layout.lobby { grid-template-columns: minmax(0, 1fr); grid-template-areas: "action" "board" "score" "log"; grid-template-rows: auto; align-items: start; }
+  #k50-action { contain: none; align-self: start; max-height: 75vh; }
   .k50-home-grid { grid-template-columns: 1fr; }
   body.k50-body { padding: 1rem .7rem; }
 }
@@ -182,6 +182,18 @@ body.k50-body { align-items: flex-start; }
 .k50-court .t { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 2.4cqw; font-weight: 800; letter-spacing: .08em; }
 .k50-court i { font-size: 2.6cqw; }
 .k50-sgr { flex-direction: column; font-weight: 800; }
+/* SGR railway: runs from tile 28 (col 7) across to tile 17 (col 10) on the same row, tucking under both tiles */
+.k50-sgr .k50-trainrow { position: relative; display: flex; align-items: center; justify-content: center; width: calc(100% + 2.6cqw); height: 4.6cqw; }
+.k50-sgr .k50-trainrow::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2.6cqw; transform: translateY(-50%); border-radius: .3cqw;
+  background:
+    linear-gradient(#d5d9e0, #8d939e) 0 24% / 100% .32cqw no-repeat,
+    linear-gradient(#d5d9e0, #8d939e) 0 76% / 100% .32cqw no-repeat,
+    repeating-linear-gradient(90deg, #6b4a2b 0 .55cqw, transparent .55cqw 1.3cqw),
+    rgba(70, 55, 40, .35);
+  box-shadow: 0 .2cqw .4cqw rgba(0, 0, 0, .35);
+}
+.k50-sgr .k50-train { position: relative; font-size: 4cqw; line-height: 1; filter: drop-shadow(0 .25cqw .25cqw rgba(0, 0, 0, .45)); }
 .k50-sgr .sign { background: #1c8a3f; color: #fff; padding: .35cqw 1cqw; border-radius: .5cqw; font-size: 1.5cqw; border: .2cqw solid #fff; margin-top: .3cqw; }
 
 @container k50 (max-width: 760px) {

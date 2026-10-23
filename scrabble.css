@@ -125,12 +125,13 @@ body.light-mode .scr-modal { background: #fff; color: #0f172a; border-color: rgb
 .scr-bar i { display: block; height: 100%; background: var(--scr-green); transition: width .25s; }
 
 /* ---------- layout ---------- */
-.scr-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 1.1rem; align-items: start; }
+.scr-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 1.1rem; align-items: start; }
 .scr-layout.lobby { display: block; }
 .scr-main { display: flex; flex-direction: column; gap: .9rem; min-width: 0; }
 .scr-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .scr-layout.busy .scr-main { opacity: .8; pointer-events: none; }
 .scr-statusbar { display: flex; flex-direction: column; gap: .4rem; }
+.scr-statusbar:empty { display: none; }
 .scr-turn { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.1rem; padding: .5rem 1rem; border-radius: 14px; background: var(--card-bg); border: 1px solid var(--card-border); width: fit-content; }
 .scr-turn.mine { border-color: var(--scr-gold); box-shadow: 0 0 0 3px rgba(244,197,66,.3); }
 .scr-last { font-size: .95rem; color: var(--text-muted); line-height: 1.4; }
@@ -166,13 +167,13 @@ body.light-mode .scr-modal { background: #fff; color: #0f172a; border-color: rgb
 
 /* ---------- rack ---------- */
 .scr-rackbox { display: flex; flex-direction: column; gap: .8rem; }
-.scr-rack { display: flex; justify-content: center; gap: .5rem; padding: .7rem; border-radius: 16px; background: rgba(0,0,0,.28); min-height: 4.6rem; }
+.scr-rack { display: flex; justify-content: center; gap: .3rem; padding: .6rem; border-radius: 16px; background: rgba(0,0,0,.28); min-height: 4.6rem; }
 .scr-rtile {
-  appearance: none; border: 0; cursor: pointer; position: relative; width: clamp(2.5rem, 11vw, 3.6rem); aspect-ratio: 1;
+  appearance: none; border: 0; cursor: pointer; position: relative; flex: 1 1 0; min-width: 0; max-width: 3.6rem; aspect-ratio: 1;
   border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: inherit;
   transition: transform .12s ease;
 }
-.scr-rtile b { font-size: clamp(1.4rem, 6vw, 2rem); line-height: 1; }
+.scr-rtile b { font-size: clamp(1.1rem, 4.5vw, 1.8rem); line-height: 1; }
 .scr-rtile sup { position: absolute; right: 5px; bottom: 3px; font-size: .7rem; font-weight: 700; }
 .scr-rtile.sel { transform: translateY(-8px); outline: 3px solid var(--scr-gold); }
 .scr-rtile.blank b::after { content: ""; }
@@ -204,3 +205,7 @@ body.light-mode .scr-modal { background: #fff; color: #0f172a; border-color: rgb
   .scr-btn { padding: .7rem 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { .scr-rtile { transition: none; } }
+
+/* rack lives in the side column: keep its buttons compact */
+.scr-side .scr-rackbox .scr-row.wrap { gap: .4rem; }
+.scr-side .scr-rackbox .scr-btn { padding: .55rem .85rem; font-size: .9rem; border-radius: 12px; }

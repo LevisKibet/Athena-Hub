@@ -319,15 +319,15 @@
     lay.className = 'scr-layout' + (ui.busy ? ' busy' : '');
     lay.innerHTML = `
       <div class="scr-main">
-        <div class="scr-statusbar">${statusHtml(s)}</div>
         ${boardHtml(s)}
-        ${rackHtml(s)}
       </div>
       <aside class="scr-side">
+        <div class="scr-statusbar">${statusHtml(s)}</div>
         <div class="scr-panel">${playersHtml(s)}</div>
         <div class="scr-panel scr-log"><h3>Game log</h3><ul>${(s.log || []).slice(0, 12).map(l => `<li>${esc(l.text)}</li>`).join('')}</ul>
           <div class="scr-row between" style="margin-top:.7rem"><button class="scr-btn small ghost" data-act="leave"><i class="fa-solid fa-arrow-left"></i> Leave</button>
           ${s.me && s.me.isCreator ? (g.status === 'PLAYING' ? '<button class="scr-btn small ghost" data-act="end">End game</button>' : '<button class="scr-btn small ghost" data-act="delete">Delete game</button>') : ''}</div></div>
+        ${rackHtml(s)}
       </aside>
       ${ui.blankFor ? blankPickerHtml() : ''}`;
   }

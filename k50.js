@@ -457,7 +457,7 @@
       <div class="k50-decor sm" style="grid-column:3/5;grid-row:6">🦒🌴</div>
       <div class="k50-decor k50-fifty" style="grid-column:4/7;grid-row:4"><div class="big">50</div><div class="sub">seconds on the clock</div></div>
       <div class="k50-decor sm" style="grid-column:6;grid-row:5/7">🌳</div>
-      <div class="k50-decor k50-sgr" style="grid-column:8/10;grid-row:3"><span style="font-size:4cqw">🚆</span><span class="sign">SGR KENYA</span></div>
+      <div class="k50-decor k50-sgr" style="grid-column:8/10;grid-row:3"><div class="k50-trainrow"><span class="k50-train">🚆</span></div><span class="sign">SGR KENYA</span></div>
       <div class="k50-decor k50-court" style="grid-column:8/10;grid-row:4/6"><i class="fa-solid fa-scale-balanced"></i><span class="t">Supreme Court</span></div>
       <div class="k50-decor sm" style="grid-column:8/10;grid-row:6">🦩</div>
       <div class="k50-decor" style="grid-column:6;grid-row:7">🦏</div>`;
