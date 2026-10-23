@@ -11,47 +11,47 @@
 
   const BOARD = [
   { pos: 0, col: 0, row: 6, kind: "START", code: "START", label: "START HERE" },
-  { pos: 1, col: 1, row: 6, kind: "RED", code: null, label: null },
-  { pos: 2, col: 2, row: 6, kind: "BLACK", code: null, label: null },
-  { pos: 3, col: 3, row: 6, kind: "RED", code: null, label: null },
-  { pos: 4, col: 4, row: 6, kind: "JUDICIARY", code: null, label: null },
-  { pos: 5, col: 4, row: 5, kind: "BLACK", code: null, label: null },
-  { pos: 6, col: 4, row: 4, kind: "RED", code: null, label: null },
-  { pos: 7, col: 3, row: 4, kind: "BLACK", code: null, label: null },
-  { pos: 8, col: 2, row: 4, kind: "SPECIAL", code: "GIVE", label: "Give 10 points to any team!" },
-  { pos: 9, col: 2, row: 3, kind: "RED", code: null, label: null },
-  { pos: 10, col: 2, row: 2, kind: "JUDICIARY", code: null, label: null },
-  { pos: 11, col: 3, row: 2, kind: "BLACK", code: null, label: null },
-  { pos: 12, col: 4, row: 2, kind: "RED", code: null, label: null },
-  { pos: 13, col: 5, row: 2, kind: "BLACK", code: null, label: null },
-  { pos: 14, col: 6, row: 2, kind: "SPECIAL", code: "SGR", label: "Take a trip on the SGR. Collect 10 points." },
-  { pos: 15, col: 6, row: 3, kind: "RED", code: null, label: null },
-  { pos: 16, col: 6, row: 4, kind: "JUDICIARY", code: null, label: null },
-  { pos: 17, col: 6, row: 5, kind: "BLACK", code: null, label: null },
-  { pos: 18, col: 6, row: 6, kind: "SPECIAL", code: "RHINO", label: "Rare find, a rhino! Move 4 steps forward." },
-  { pos: 19, col: 7, row: 6, kind: "RED", code: null, label: null },
-  { pos: 20, col: 8, row: 6, kind: "BLACK", code: null, label: null },
+  { pos: 1, col: 0, row: 5, kind: "SPECIAL", code: "HOME", label: "Back home! Collect 50 points after passing START." },
+  { pos: 2, col: 0, row: 4, kind: "RED", code: null, label: null },
+  { pos: 3, col: 0, row: 3, kind: "JUDICIARY", code: null, label: null },
+  { pos: 4, col: 0, row: 2, kind: "BLACK", code: null, label: null },
+  { pos: 5, col: 0, row: 1, kind: "RED", code: null, label: null },
+  { pos: 6, col: 0, row: 0, kind: "SPECIAL", code: "MARA", label: "Welcome to the Mara! Mauled by lions: go back 3 spaces." },
+  { pos: 7, col: 1, row: 0, kind: "RED", code: null, label: null },
+  { pos: 8, col: 2, row: 0, kind: "BLACK", code: null, label: null },
+  { pos: 9, col: 3, row: 0, kind: "RED", code: null, label: null },
+  { pos: 10, col: 4, row: 0, kind: "BLACK", code: null, label: null },
+  { pos: 11, col: 5, row: 0, kind: "JUDICIARY", code: null, label: null },
+  { pos: 12, col: 6, row: 0, kind: "RED", code: null, label: null },
+  { pos: 13, col: 7, row: 0, kind: "BLACK", code: null, label: null },
+  { pos: 14, col: 8, row: 0, kind: "RED", code: null, label: null },
+  { pos: 15, col: 9, row: 0, kind: "SPECIAL", code: "STEAL", label: "Steal 10 points from any team!" },
+  { pos: 16, col: 9, row: 1, kind: "BLACK", code: null, label: null },
+  { pos: 17, col: 9, row: 2, kind: "RED", code: null, label: null },
+  { pos: 18, col: 9, row: 3, kind: "JUDICIARY", code: null, label: null },
+  { pos: 19, col: 9, row: 4, kind: "RED", code: null, label: null },
+  { pos: 20, col: 9, row: 5, kind: "BLACK", code: null, label: null },
   { pos: 21, col: 9, row: 6, kind: "SPECIAL", code: "MOMBASA", label: "Mombasa raha! Skip a turn." },
-  { pos: 22, col: 9, row: 5, kind: "BLACK", code: null, label: null },
-  { pos: 23, col: 9, row: 4, kind: "RED", code: null, label: null },
-  { pos: 24, col: 9, row: 3, kind: "JUDICIARY", code: null, label: null },
-  { pos: 25, col: 9, row: 2, kind: "RED", code: null, label: null },
-  { pos: 26, col: 9, row: 1, kind: "BLACK", code: null, label: null },
-  { pos: 27, col: 9, row: 0, kind: "SPECIAL", code: "STEAL", label: "Steal 10 points from any team!" },
-  { pos: 28, col: 8, row: 0, kind: "RED", code: null, label: null },
-  { pos: 29, col: 7, row: 0, kind: "BLACK", code: null, label: null },
-  { pos: 30, col: 6, row: 0, kind: "RED", code: null, label: null },
-  { pos: 31, col: 5, row: 0, kind: "JUDICIARY", code: null, label: null },
-  { pos: 32, col: 4, row: 0, kind: "BLACK", code: null, label: null },
-  { pos: 33, col: 3, row: 0, kind: "RED", code: null, label: null },
-  { pos: 34, col: 2, row: 0, kind: "BLACK", code: null, label: null },
-  { pos: 35, col: 1, row: 0, kind: "RED", code: null, label: null },
-  { pos: 36, col: 0, row: 0, kind: "SPECIAL", code: "MARA", label: "Welcome to the Mara! Mauled by lions: go back 3 spaces." },
-  { pos: 37, col: 0, row: 1, kind: "RED", code: null, label: null },
-  { pos: 38, col: 0, row: 2, kind: "BLACK", code: null, label: null },
-  { pos: 39, col: 0, row: 3, kind: "JUDICIARY", code: null, label: null },
-  { pos: 40, col: 0, row: 4, kind: "RED", code: null, label: null },
-  { pos: 41, col: 0, row: 5, kind: "SPECIAL", code: "HOME", label: "Back home! Collect 50 points after passing START." },
+  { pos: 22, col: 8, row: 6, kind: "BLACK", code: null, label: null },
+  { pos: 23, col: 7, row: 6, kind: "RED", code: null, label: null },
+  { pos: 24, col: 6, row: 6, kind: "SPECIAL", code: "RHINO", label: "Rare find, a rhino! Move 4 steps forward." },
+  { pos: 25, col: 6, row: 5, kind: "BLACK", code: null, label: null },
+  { pos: 26, col: 6, row: 4, kind: "JUDICIARY", code: null, label: null },
+  { pos: 27, col: 6, row: 3, kind: "RED", code: null, label: null },
+  { pos: 28, col: 6, row: 2, kind: "SPECIAL", code: "SGR", label: "Take a trip on the SGR. Collect 10 points." },
+  { pos: 29, col: 5, row: 2, kind: "BLACK", code: null, label: null },
+  { pos: 30, col: 4, row: 2, kind: "RED", code: null, label: null },
+  { pos: 31, col: 3, row: 2, kind: "BLACK", code: null, label: null },
+  { pos: 32, col: 2, row: 2, kind: "JUDICIARY", code: null, label: null },
+  { pos: 33, col: 2, row: 3, kind: "RED", code: null, label: null },
+  { pos: 34, col: 2, row: 4, kind: "SPECIAL", code: "GIVE", label: "Give 10 points to any team!" },
+  { pos: 35, col: 3, row: 4, kind: "BLACK", code: null, label: null },
+  { pos: 36, col: 4, row: 4, kind: "RED", code: null, label: null },
+  { pos: 37, col: 4, row: 5, kind: "BLACK", code: null, label: null },
+  { pos: 38, col: 4, row: 6, kind: "JUDICIARY", code: null, label: null },
+  { pos: 39, col: 3, row: 6, kind: "RED", code: null, label: null },
+  { pos: 40, col: 2, row: 6, kind: "BLACK", code: null, label: null },
+  { pos: 41, col: 1, row: 6, kind: "RED", code: null, label: null },
 ];
 
   const ICONS = ['chess-pawn', 'crown', 'star', 'paw', 'rocket', 'bolt', 'heart', 'shield-halved', 'fire', 'gem', 'leaf', 'sun'];
@@ -498,6 +498,7 @@
   }
   function renderAll() {
     if (!S.snap || S.view !== 'game' || !$('#k50-action')) return;
+    const lay = $('.k50-layout'); if (lay) lay.classList.toggle('lobby', S.snap.game.status === 'LOBBY');
     renderAction(); renderScore(); renderLog(); renderMarkers();
   }
 
@@ -525,11 +526,12 @@
   function afterActionRender(C) {
     if (C.g.status === 'LOBBY') {
       const url = joinUrl();
-      if (window.QRCode && ui.qrFor !== url) {
-        window.QRCode.toDataURL(url, { width: 300, margin: 1 }, (err, u) => {
-          if (err) return; ui.qrUrl = u; ui.qrFor = url;
-          const img = $('#k50-qr'); if (img) { img.src = u; img.classList.remove('k50-hide'); }
-        });
+      if (window.qrcode && ui.qrFor !== url) {
+        try {
+          const q = window.qrcode(0, 'M'); q.addData(url); q.make();
+          ui.qrUrl = q.createDataURL(6, 2); ui.qrFor = url;
+          const img = $('#k50-qr'); if (img) { img.src = ui.qrUrl; img.classList.remove('k50-hide'); }
+        } catch (e) { /* QR is optional */ }
       }
     }
     timerTick();
@@ -559,7 +561,7 @@
   function lobbyHtml(C) {
     const { s, g } = C, url = joinUrl();
     const joined = !!C.me;
-    const canPick = !C.isHost && !joined;
+    const canPick = !joined;
     let h = `<div class="k50-room">
         <div class="k50-muted">Room code</div><div class="code">${esc(g.roomCode)}</div>
         <div class="k50-link">${esc(url)}</div>
@@ -576,20 +578,20 @@
         ${C.isHost && !pls.length ? `<button class="k50-btn small ghost" data-act="rm-team" data-id="${t.id}">Remove</button>` : ''}
         ${mine ? '<span class="k50-pill gold">You</span>' : ''}</div>`;
     }).join('') || '<div class="k50-muted">No teams yet. Create the first one!</div>';
-    if (canPick && g.status === 'LOBBY') {
+    if (canPick && !C.isHost && g.status === 'LOBBY') {
       h += `<div class="k50-teamrow pick ${ui.joinTeam === 'NEW' ? 'selected' : ''}" data-act="pick-team" data-id="NEW"><span class="k50-pin lg" style="background:#334155;color:#fff"><i class="fa-solid fa-plus"></i></span><div class="grow"><div class="nm">Create a new team</div></div></div>`;
     }
     h += '</div>';
 
     if (canPick) {
-      h += `<h3>Join this game</h3>
+      h += `<h3>${C.isHost ? 'Play too? Pick a team and join' : 'Join this game'}</h3>
         <label class="k50-label" for="k50-nick">Your nickname</label>
         <input id="k50-nick" class="k50-input" maxlength="14" placeholder="e.g. Amina" data-bind="joinNick" value="${esc(ui.joinNick)}" autocomplete="off">
-        ${ui.joinTeam === 'NEW' ? teamForm(C) : ''}
+        ${ui.joinTeam === 'NEW' && !C.isHost ? teamForm(C) : ''}
         <button class="k50-btn block" style="margin-top:.9rem" data-act="join"><i class="fa-solid fa-right-to-bracket"></i> Join game</button>
-        <p class="k50-muted" style="margin-top:.5rem">${ui.joinTeam ? '' : 'Tap a team above, or create your own.'}</p>`;
+        <p class="k50-muted" style="margin-top:.5rem">${ui.joinTeam ? '' : (C.isHost ? 'Optional: add a team below first, then tap it above to play on it.' : 'Tap a team above, or create your own.')}</p>`;
     } else if (joined) {
-      h += `<p class="k50-muted" style="margin-top:.8rem">You're in as <b>${esc(C.me.nickname)}</b>. Tap another team above to switch. Waiting for the host to start…</p>`;
+      h += `<p class="k50-muted" style="margin-top:.8rem">You're in as <b>${esc(C.me.nickname)}</b>. Tap another team above to switch.${C.isHost ? '' : ' Waiting for the host to start…'}</p>`;
     }
     if (C.isHost) {
       h += `<h3>Add a team</h3>${teamForm(C)}
@@ -632,7 +634,7 @@
     if (ui.holding) {
       return `${banner(C)}<div class="k50-diewrap">${dieHtml(1, true)}<div class="k50-headline">${esc(C.cur ? C.cur.name : '')} rolling…</div></div>`;
     }
-    const joinLater = (!C.isHost && !C.me && g.status !== 'LOBBY' && g.status !== 'FINISHED');
+    const joinLater = (!C.me && g.status !== 'LOBBY' && g.status !== 'FINISHED');
     let h = '';
     switch (g.status) {
       case 'LOBBY': return lobbyHtml(C);
