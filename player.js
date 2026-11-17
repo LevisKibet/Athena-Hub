@@ -2,19 +2,17 @@
   const BOOT = window.QA_BOOTSTRAP || {};
   const LS_KEY = 'quiz_arena_player_v2';
   const state = {
-    client: null,
+    conn: null,
+    connPin: '',
+    pendingJoin: '',
+    joinTimeout: null,
     snapshot: null,
-    channel: null,
-    gameId: '',
     playerId: '',
     gamePin: '',
     nickname: '',
     serverOffsetMs: 0,
     timerInterval: null,
-    pendingAnswer: false,
-    loading: false,
-    queued: false,
-    heartbeat: null
+    pendingAnswer: false
   };
   const stage = document.getElementById('playerStage');
   const errorEl = document.getElementById('playerError');
@@ -55,29 +53,85 @@
   }
 
   function init() {
-    if (!BOOT.supabaseUrl || !BOOT.anonKey) {
-      showError('Missing Supabase URL or anon key. Check config.js.');
+    if (!BOOT.realtimeUrl) {
+      showError('Missing realtimeUrl in config.js.');
       renderJoin();
       return;
     }
-    state.client = window.supabase.createClient(BOOT.supabaseUrl, BOOT.anonKey);
     const urlPin = getUrlPin();
     const saved = readSaved();
     if (urlPin) state.gamePin = urlPin;
-    if (saved && saved.playerId && (saved.gamePin || urlPin)) {
+    if (saved && saved.playerId && saved.gamePin && (!urlPin || urlPin === saved.gamePin)) {
+      // Coming back to the same game (page refresh, phone slept): pick up where we were.
       state.playerId = saved.playerId;
-      state.gamePin = urlPin || saved.gamePin;
+      state.gamePin = saved.gamePin;
       state.nickname = saved.nickname || '';
-      loadSnapshot().catch(function(){ renderJoin(); });
+      stage.innerHTML = '<div class="join-card player-status"><p class="subtle"><span class="loading"></span> Reconnecting to your game…</p></div>';
+      openConnection(state.gamePin);
     } else {
       renderJoin();
     }
   }
 
-  async function rpc(name, args) {
-    const { data, error } = await state.client.rpc(name, args || {});
-    if (error) throw new Error(error.message || JSON.stringify(error));
-    return data;
+  // ---- Athena Sync connection (Cloudflare) ----
+  function openConnection(pin) {
+    if (state.conn && state.connPin === pin) return;
+    if (state.conn) state.conn.close();
+    state.connPin = pin;
+    state.conn = window.AthenaSync.connect({
+      url: BOOT.realtimeUrl,
+      pin: pin,
+      role: 'player',
+      onOpen: function() {
+        hideError();
+        if (state.playerId) state.conn.send({ t: 'resume', playerId: state.playerId });
+        else if (state.pendingJoin) state.conn.send({ t: 'join', nickname: state.pendingJoin });
+      },
+      onStatus: function(s) {
+        if (s === 'reconnecting' && state.snapshot) showError('Connection lost. Reconnecting…');
+      },
+      onMessage: onServerMessage,
+      onClosedByServer: function() { state.conn = null; state.connPin = ''; }
+    });
+  }
+
+  function onServerMessage(msg) {
+    if (msg.t === 'joined') {
+      clearTimeout(state.joinTimeout);
+      state.pendingJoin = '';
+      state.playerId = msg.playerId;
+      state.nickname = msg.nickname;
+      state.gamePin = msg.gamePin || state.gamePin;
+      savePlayer();
+    } else if (msg.t === 'snapshot') {
+      setSnapshot(msg.snap);
+    } else if (msg.t === 'unknown_player') {
+      forgetPlayer();
+      renderJoin();
+    } else if (msg.t === 'reset') {
+      forgetPlayer();
+      showError('The host reset the room. Please join again.');
+      renderJoin();
+    } else if (msg.t === 'error') {
+      clearTimeout(state.joinTimeout);
+      if (state.pendingJoin) {
+        state.pendingJoin = '';
+        if (state.conn) { state.conn.close(); state.conn = null; state.connPin = ''; }
+        showError(msg.message);
+        renderJoin();
+        return;
+      }
+      if (state.pendingAnswer) { state.pendingAnswer = false; render(); }
+      showError(msg.message);
+    }
+  }
+
+  function forgetPlayer() {
+    state.playerId = '';
+    state.snapshot = null;
+    state.pendingAnswer = false;
+    clearInterval(state.timerInterval);
+    try { localStorage.removeItem(LS_KEY); } catch (err) {}
   }
 
   function renderJoin() {
@@ -102,6 +156,7 @@
     const pin = document.getElementById('pinInput').value.trim();
     const nick = document.getElementById('nickInput').value.trim();
     if (!pin) return showError('Game PIN is required.');
+    if (!/^\d{4,12}$/.test(pin)) return showError('The Game PIN is numbers only.');
     if (!nick) return showError('Nickname is required.');
     if (nick.length > 20) return showError('Nickname must be 20 characters or fewer.');
     
@@ -111,76 +166,34 @@
 
     stage.querySelector('button').disabled = true;
     stage.querySelector('button').innerHTML = '<span class="loading"></span> Joining';
-    try {
-      const result = await rpc('qa_join_game', { p_game_pin: pin, p_nickname: nick, p_existing_player_id: '' });
-      state.playerId = result.player.playerId;
-      state.gamePin = result.gamePin || pin;
-      state.nickname = result.player.nickname || nick;
-      state.gameId = result.gameId;
-      savePlayer();
-      await loadSnapshot();
-      startHeartbeat();
-      hideError();
-    } catch (err) {
-      showError(err.message || err);
+    forgetPlayer();
+    state.gamePin = pin;
+    state.pendingJoin = nick;
+    if (state.conn && state.connPin === pin && state.conn.isOpen()) state.conn.send({ t: 'join', nickname: nick });
+    else openConnection(pin);
+    clearTimeout(state.joinTimeout);
+    state.joinTimeout = setTimeout(function(){
+      if (!state.pendingJoin) return;
+      state.pendingJoin = '';
+      if (state.conn) { state.conn.close(); state.conn = null; state.connPin = ''; }
+      showError("Couldn't reach the game. Check your connection and try again.");
       renderJoin();
-    }
-  }
-
-  async function loadSnapshot() {
-    if (!state.playerId || !state.gamePin) throw new Error('Not joined yet.');
-    if (state.loading) { state.queued = true; return; }
-    state.loading = true;
-    try {
-      const snap = await rpc('qa_player_snapshot', { p_game_pin: state.gamePin, p_player_id: state.playerId });
-      setSnapshot(snap);
-      hideError();
-    } catch (err) {
-      showError(err.message || err);
-      throw err;
-    } finally {
-      state.loading = false;
-      if (state.queued) {
-        state.queued = false;
-        setTimeout(loadSnapshot, 80);
-      }
-    }
+    }, 15000);
   }
 
   function setSnapshot(snap) {
     if (!snap || !snap.game || !snap.player) return;
+    const prev = state.snapshot;
     state.snapshot = snap;
     state.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
-    state.gameId = snap.game.id;
     state.playerId = snap.player.playerId;
     state.nickname = snap.player.nickname;
+    if (snap.answer) state.pendingAnswer = false;
+    if (prev && prev.game.currentRound !== snap.game.currentRound) state.pendingAnswer = false;
     savePlayer();
-    maybeSubscribe();
+    hideError();
     render();
     startTimerLoop();
-    startHeartbeat();
-  }
-
-  function maybeSubscribe() {
-    if (!state.gameId || state.channel) return;
-    state.channel = state.client
-      .channel('quiz-arena-player-' + state.gameId + '-' + state.playerId)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'id=eq.' + state.gameId }, debounceSnapshot)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + state.gameId }, debounceSnapshot)
-      .subscribe();
-  }
-
-  let debounceHandle = null;
-  function debounceSnapshot() {
-    clearTimeout(debounceHandle);
-    debounceHandle = setTimeout(function(){ loadSnapshot().catch(function(){}); }, 120);
-  }
-
-  function startHeartbeat() {
-    if (state.heartbeat || !state.playerId || !state.gamePin) return;
-    state.heartbeat = setInterval(function(){
-      rpc('qa_heartbeat', { p_game_pin: state.gamePin, p_player_id: state.playerId }).catch(function(){});
-    }, 15000);
   }
 
   function nowServerMs() { return Date.now() + state.serverOffsetMs; }
@@ -259,23 +272,12 @@
     updateTimer();
   }
 
-  async function submitAnswer(choice) {
-    if (state.pendingAnswer) return;
+  function submitAnswer(choice) {
+    if (state.pendingAnswer || !state.conn) return;
+    const sent = state.conn.send({ t: 'answer', round: state.snapshot.game.currentRound, choice: choice });
+    if (!sent) return showError('Not connected. Reconnecting… try again in a second.');
     state.pendingAnswer = true;
-    document.querySelectorAll('[data-choice]').forEach(function(btn){ btn.disabled = true; });
-    try {
-      await rpc('qa_submit_answer', {
-        p_game_pin: state.gamePin,
-        p_player_id: state.playerId,
-        p_round: state.snapshot.game.currentRound,
-        p_choice: choice
-      });
-      await loadSnapshot();
-    } catch (err) {
-      state.pendingAnswer = false;
-      showError(err.message || err);
-      loadSnapshot().catch(function(){});
-    }
+    renderQuestionController();
   }
 
   function renderBetweenQuestions(status) {
@@ -310,7 +312,7 @@
         <p class="subtle">Great game, ${escapeHtml(p.nickname)}.</p>
         <button class="btn secondary" id="leaveBtn" style="margin-top:18px">Join another game</button>
       </div>`;
-    document.getElementById('leaveBtn').onclick = function(){ localStorage.removeItem(LS_KEY); location.reload(); };
+    document.getElementById('leaveBtn').onclick = function(){ forgetPlayer(); if (state.conn) state.conn.close(); state.conn = null; state.connPin = ''; renderJoin(); };
   }
 
   function scoreBadge(p) {

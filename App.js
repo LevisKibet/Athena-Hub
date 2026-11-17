@@ -77,6 +77,10 @@ const hostState = {
   snapshotQueued: false,
   isController: false,
   lockHeartbeatTimer: null,
+  conn: null,
+  questions: [],
+  title: '',
+  lastPopAt: 0,
   finishedRevealScheduled: false
 };
 
@@ -234,6 +238,9 @@ window.showKahootView = function(view) {
   clearTimeout(hostState.autoAdvanceTimer);
   if (view !== 'host') {
     clearInterval(hostState.lockHeartbeatTimer);
+    if (hostState.conn) { hostState.conn.close(); hostState.conn = null; }
+    const syncEl = document.getElementById('host-sync-status');
+    if (syncEl) syncEl.remove();
   }
 
   kahootView.style.display = 'none';
@@ -1139,12 +1146,19 @@ window.hostMatch = async function(gameId) {
     hostState.gamePin = game.game_pin;
     hostState.hostToken = game.host_token;
 
-    const gotLock = await claimHostLock(gameId);
-    if (gotLock) {
-      startHostLockHeartbeat(gameId);
-    } else {
-      clearInterval(hostState.lockHeartbeatTimer);
+    // Questions and title come from Supabase as before; the live game itself
+    // now runs on Athena Sync (Cloudflare), see connectHostRealtime().
+    const [{ data: questions, error: qError }, { data: configs }] = await Promise.all([
+      supabaseClient.from('questions').select('*').eq('game_id', gameId).order('sort_order', { ascending: true }),
+      supabaseClient.from('config').select('*').eq('game_id', gameId).eq('key', 'title')
+    ]);
+    if (qError) throw qError;
+    if (!questions || !questions.length) {
+      alert('This match has no questions yet. Add some in the editor first.');
+      return;
     }
+    hostState.questions = questions;
+    hostState.title = (configs && configs[0] && configs[0].value) || '';
 
     if (hostState.audio) {
       hostState.audio.unlock();
@@ -1154,35 +1168,76 @@ window.hostMatch = async function(gameId) {
     }
 
     window.showKahootView('host');
-    await loadHostSnapshot();
+    connectHostRealtime();
 
   } catch (err) {
     alert('Error launching host match: ' + err.message);
   }
 };
 
-async function loadHostSnapshot() {
-  if (hostState.loading) {
-    hostState.snapshotQueued = true;
+function connectHostRealtime() {
+  const cfg = window.QA_CONFIG || {};
+  if (!cfg.realtimeUrl || !window.AthenaSync) {
+    showHostError('Athena Sync is not set up: add realtimeUrl to config.js.');
     return;
   }
-  hostState.loading = true;
-
-  try {
-    const snap = await hostRpc('qa_host_snapshot', {
-      p_game_pin: hostState.gamePin,
-      p_host_token: hostState.hostToken
-    });
-    setHostSnapshot(snap);
-  } catch (err) {
-    showHostError(err.message || err);
-  } finally {
-    hostState.loading = false;
-    if (hostState.snapshotQueued) {
-      hostState.snapshotQueued = false;
-      setTimeout(loadHostSnapshot, 60);
+  if (hostState.conn) hostState.conn.close();
+  hostState.snapshot = null;
+  hostState.conn = window.AthenaSync.connect({
+    url: cfg.realtimeUrl,
+    pin: hostState.gamePin,
+    role: 'host',
+    onOpen: function() {
+      const sel = document.getElementById('host-sync-status');
+      if (sel) sel.remove();
+      hostState.conn.send({
+        t: 'host_hello',
+        session: HOST_SESSION_ID,
+        title: hostState.title,
+        questions: (hostState.questions || []).map(q => ({
+          question: q.question, option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+          correct: q.correct, image_url: q.image_url, time_limit: q.time_limit
+        }))
+      });
+    },
+    onStatus: function(s) {
+      if (s === 'reconnecting') showHostSyncStatus('Connection to the game server lost. Reconnecting…');
+    },
+    onMessage: function(msg) {
+      if (msg.t === 'host_snapshot') {
+        hostState.isController = !!msg.snap.isController;
+        setHostSnapshot(msg.snap);
+      } else if (msg.t === 'answer_ping') {
+        // One pop per burst, not one per player: 450 overlapping pops is noise.
+        const now = Date.now();
+        if (hostState.audio && !hostState.muted && now - (hostState.lastPopAt || 0) > 150) {
+          hostState.lastPopAt = now;
+          hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
+        }
+      } else if (msg.t === 'error') {
+        showHostError(msg.message);
+      }
     }
+  });
+}
+
+function showHostSyncStatus(text) {
+  let el = document.getElementById('host-sync-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'host-sync-status';
+    el.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2000;background:#f59e0b;color:#111;padding:0.5rem 1rem;border-radius:999px;font-weight:700;';
+    document.body.appendChild(el);
   }
+  el.textContent = text;
+}
+
+function sendHostCommand(t) {
+  if (!hostState.conn || !hostState.conn.send({ t })) {
+    showHostError('Not connected to the game server yet. Try again in a moment.');
+    return false;
+  }
+  return true;
 }
 
 function setHostSnapshot(snap) {
@@ -1193,7 +1248,6 @@ function setHostSnapshot(snap) {
 
   hostState.snapshot = snap;
   hostState.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
-  hostState.gameId = snap.game.id;
 
   if (status !== 'FINISHED') {
     hostState.finishedRendered = false;
@@ -1223,33 +1277,9 @@ function setHostSnapshot(snap) {
     hostState.lastScores = {};
   }
 
-  subscribeHostRealtime();
   handleAudioTransitions(previous, snap);
   renderHostStage();
   startHostTimerLoop();
-}
-
-function subscribeHostRealtime() {
-  if (!hostState.gameId || hostState.channel) return;
-
-  hostState.channel = supabaseClient
-    .channel('quiz-arena-host-' + hostState.gameId)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'id=eq.' + hostState.gameId }, debounceHostSnapshot)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: 'game_id=eq.' + hostState.gameId }, debounceHostSnapshot)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + hostState.gameId }, function(payload) {
-      const eventType = payload && payload.new ? payload.new.event_type : '';
-      if (eventType === 'ANSWER' && hostState.audio && !hostState.muted) {
-        hostState.audio.playSfx('Music/soundreality-pop-sound-423716.mp3');
-      }
-      debounceHostSnapshot();
-    })
-    .subscribe();
-}
-
-let hostDebounceHandle = null;
-function debounceHostSnapshot() {
-  clearTimeout(hostDebounceHandle);
-  hostDebounceHandle = setTimeout(loadHostSnapshot, 90);
 }
 
 function nowServerMs() {
@@ -1756,45 +1786,26 @@ function scheduleFinishedReveal() {
   }, 14500);
 }
 
-async function advanceHostGame() {
+function advanceHostGame() {
   if (!hostState.isController || isTransitioning) return;
   isTransitioning = true;
-  try {
-    clearTimeout(hostState.autoAdvanceTimer);
-    hostState.finishedRendered = false;
-    hostState.finishedRevealScheduled = false;
-    const snap = await hostRpc('qa_advance_game', {
-      p_game_pin: hostState.gamePin,
-      p_host_token: hostState.hostToken
-    });
-    setHostSnapshot(snap);
-  } catch (err) {
-    showHostError(err.message || err);
-  } finally {
-    setTimeout(() => isTransitioning = false, 500); // 500ms debounce
-  }
+  clearTimeout(hostState.autoAdvanceTimer);
+  hostState.finishedRendered = false;
+  hostState.finishedRevealScheduled = false;
+  sendHostCommand('advance');
+  setTimeout(() => isTransitioning = false, 500); // 500ms debounce
 }
 
-async function revealHostRound(reason) {
+function revealHostRound(reason) {
   if (!hostState.isController || isTransitioning) return;
   isTransitioning = true;
-  try {
-    hostState.finishedRendered = false;
-    hostState.finishedRevealScheduled = false;
-    const snap = await hostRpc('qa_reveal_round', {
-      p_game_pin: hostState.gamePin,
-      p_host_token: hostState.hostToken,
-      p_reason: reason || 'host'
-    });
-    setHostSnapshot(snap);
-  } catch (err) {
-    showHostError(err.message || err);
-  } finally {
-    setTimeout(() => isTransitioning = false, 500);
-  }
+  hostState.finishedRendered = false;
+  hostState.finishedRevealScheduled = false;
+  sendHostCommand('reveal');
+  setTimeout(() => isTransitioning = false, 500);
 }
 
-async function resetHostGame() {
+function resetHostGame() {
   if (!hostState.isController || isTransitioning) return;
   if (!confirm('Reset the room and remove players/scores?')) return;
 
@@ -1804,19 +1815,8 @@ async function resetHostGame() {
   hostState.finishedRendered = false;
   hostState.finishedRevealScheduled = false;
   hostState.revealRequestedFor = '';
-  
-  try {
-    const snap = await hostRpc('qa_reset_game', {
-      p_game_pin: hostState.gamePin,
-      p_host_token: hostState.hostToken,
-      p_keep_players: false
-    });
-    setHostSnapshot(snap);
-  } catch (err) {
-    showHostError(err.message || err);
-  } finally {
-    setTimeout(() => isTransitioning = false, 500);
-  }
+  sendHostCommand('reset');
+  setTimeout(() => isTransitioning = false, 500);
 }
 
 function handleAudioTransitions(prev, next) {
@@ -1867,7 +1867,7 @@ function showHostError(msg) {
 // 5. INITIALIZATION & UTILITIES
 // ===================================================
 function escapeHtml(str) {
-  return (str || '').replace(/[&<>"']/g, function(m) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function(m) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
   });
 }
